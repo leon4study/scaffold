@@ -29,12 +29,18 @@ python setup_project.py myproject --no-git --no-venv
 
 ```zsh
 # --- Python 프로젝트 스캐폴더 (GitStudy/scaffold) ---
-# newpy <name> [--modules a,b,c] [--no-uv] [--no-venv] [--no-git]
+# newpy <name> [--modules a,b,c] [--no-uv] [--no-venv] [--no-git] [--github private|public]
+# newpy <name> -D [--remote] [--yes]   # 삭제 모드
 #   → 현재 디렉토리와 관계없이 ~/GitStudy/<name>/ 를 생성
 newpy() {
-  (cd ~/GitStudy && python ~/GitStudy/scaffold/setup_project.py "$@")
+  (cd ~/GitStudy && python3 ~/GitStudy/scaffold/setup_project.py "$@")
 }
+# 탭 자동완성 (옵션 정의는 setup_project.py 안에 있어 자동 동기화됨)
+eval "$(python3 ~/GitStudy/scaffold/setup_project.py --print-completion zsh 2>/dev/null)"
 ```
+
+> **참고**: macOS 에는 `python` 명령이 없고 `python3` 만 있어, 위 함수는
+> `python3` 를 사용합니다. conda/pyenv 등으로 `python` 이 잡혀 있어도 안전.
 
 설치 방법:
 
@@ -44,11 +50,13 @@ cat <<'EOF' >> ~/.zshrc
 
 # --- Python 프로젝트 스캐폴더 (GitStudy/scaffold) ---
 newpy() {
-  (cd ~/GitStudy && python ~/GitStudy/scaffold/setup_project.py "$@")
+  (cd ~/GitStudy && python3 ~/GitStudy/scaffold/setup_project.py "$@")
 }
+eval "$(python3 ~/GitStudy/scaffold/setup_project.py --print-completion zsh 2>/dev/null)"
 EOF
 source ~/.zshrc                    # 현재 셸에서 다시 로드
 type newpy                         # 확인: 함수 본문이 출력되어야 함
+newpy --<TAB>                      # 확인: 옵션 목록이 떠야 함
 ```
 
 이후 어디서든:
