@@ -722,64 +722,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 """
 
 
-def tpl_makefile(use_uv: bool) -> str:
+def tpl_makefile(use_uv: bool, profile: str = "script") -> str:
     """자기 자신을 설명하는 Makefile 을 생성.
 
     `make help` 를 실행하면 grep + awk 로 `## ` 형태의 문서 주석을 스캔해
     모든 타깃 목록을 보여 줍니다. 레시피는 uv 모드면 `uv run …` 을, pip
     모드면 일반 명령(또는 venv 활성화 안내) 을 사용합니다.
+
+    프로필 인식 — docs 는 test/format 타깃을 생략 (pytest/black 이 의존성에
+    없음). lint 도 ruff 만 실행. 의도하지 않은 NameError 를 사전 차단.
     """
+    is_docs = profile == "docs"
+    runner = "uv run " if use_uv else ""
+
+    # 프로필별 타깃 본문 — docs 면 ruff 만, 그 외엔 풀세트
+    if is_docs:
+        phony = ".PHONY: help setup install lint clean"
+        targets = f"""lint:  ## Run ruff
+\t{runner}ruff check src tests
+"""
+    else:
+        phony = ".PHONY: help setup install test lint format clean"
+        targets = f"""test:  ## Run tests with coverage
+\t{runner}pytest
+
+lint:  ## Run ruff + mypy
+\t{runner}ruff check src tests
+\t{runner}mypy src
+
+format:  ## Format with black + ruff --fix
+\t{runner}black src tests
+\t{runner}ruff check --fix src tests
+"""
+
     if use_uv:
-        return f""".PHONY: help setup install test lint format clean
+        # research 만 pre-commit 의존성이 있으므로 setup 도 그때만 훅 설치
+        setup_hook = "\n\tuv run pre-commit install" if profile == "research" else ""
+        return f"""{phony}
 
 help:  ## Show this help
 \t@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {{FS = ":.*?## "}}; {{printf "  %-12s %s\\n", $$1, $$2}}'
 
-setup:  ## Sync deps + install pre-commit hook
-\tuv sync
-\tuv run pre-commit install
+setup:  ## Sync deps{' + install pre-commit hook' if profile == 'research' else ''}
+\tuv sync{setup_hook}
 
 install:  ## Sync dependencies (idempotent)
 \tuv sync
 
-test:  ## Run tests with coverage
-\tuv run pytest
-
-lint:  ## Run ruff + mypy
-\tuv run ruff check src tests
-\tuv run mypy src
-
-format:  ## Format with black + ruff --fix
-\tuv run black src tests
-\tuv run ruff check --fix src tests
-
+{targets}
 clean:  ## Remove caches and build artifacts
 \trm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov build dist *.egg-info
 \tfind . -type d -name __pycache__ -exec rm -rf {{}} +
 """
-    return f""".PHONY: help setup install test lint format clean
+    # pip 모드 — pre-commit 훅도 research 에서만
+    pip_setup_tail = " && pre-commit install" if profile == "research" else ""
+    return f"""{phony}
 
 help:  ## Show this help
 \t@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {{FS = ":.*?## "}}; {{printf "  %-12s %s\\n", $$1, $$2}}'
 
-setup:  ## Create venv + install dev deps + pre-commit hook
+setup:  ## Create venv + install dev deps{' + pre-commit hook' if profile == 'research' else ''}
 \tpython3 -m venv .venv
-\t. .venv/bin/activate && pip install --upgrade pip && pip install -e . && pip install --group dev && pre-commit install
+\t. .venv/bin/activate && pip install --upgrade pip && pip install -e . && pip install --group dev{pip_setup_tail}
 
 install:  ## Install/refresh dependencies (in active venv)
 \tpip install -e . && pip install --group dev
 
-test:  ## Run tests
-\tpytest
-
-lint:  ## Run ruff + mypy
-\truff check src tests
-\tmypy src
-
-format:  ## Format with black + ruff --fix
-\tblack src tests
-\truff check --fix src tests
-
+{targets}
 clean:  ## Remove caches and build artifacts
 \trm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov build dist *.egg-info
 \tfind . -type d -name __pycache__ -exec rm -rf {{}} +
@@ -956,8 +965,32 @@ updates:
 """
 
 
-def tpl_ci_workflow(use_uv: bool) -> str:
-    """GitHub Actions CI 워크플로: Linux/Mac/Win 매트릭스에서 린트 + 타입체크 + 테스트.
+def _ci_steps_block(profile: str, use_uv: bool) -> str:
+    """프로필별로 CI 마지막 단계 (lint / typecheck / test) 블록을 반환.
+
+    docs: ruff 만 (mypy/pytest 가 의존성에 없음).
+    script/research: ruff + mypy + pytest.
+    """
+    runner = "uv run " if use_uv else ""
+    ruff = f"""      - name: Lint (ruff)
+        run: {runner}ruff check src tests
+"""
+    mypy_pytest = f"""
+      - name: Type check (mypy)
+        run: {runner}mypy src
+
+      - name: Test (pytest)
+        run: {runner}pytest
+"""
+    return ruff if profile == "docs" else ruff + mypy_pytest
+
+
+def tpl_ci_workflow(use_uv: bool, profile: str = "script") -> str:
+    """GitHub Actions CI 워크플로: Linux/Mac/Win 매트릭스에서 린트 (+ 타입체크 + 테스트).
+
+    프로필 인식 — docs 는 ruff 만 실행, 그 외는 ruff + mypy + pytest 실행.
+    docs 프로필에서 mypy/pytest 가 의존성에 없는데 CI 가 그것을 호출하면
+    레드 빌드가 나기 때문에 단계 자체를 빼는 게 정직한 처리.
 
     적용된 최적화:
       - `concurrency:` — 같은 브랜치에서 새 푸시가 들어오면 진행 중이던
@@ -966,6 +999,7 @@ def tpl_ci_workflow(use_uv: bool) -> str:
         의존성 설치가 pip 대비 훨씬 빠름.
       - pre-commit 캐시를 별도로 두어 반복 실행 시간을 더 줄임.
     """
+    ci_steps = _ci_steps_block(profile, use_uv)
     if use_uv:
         return f"""name: CI
 
@@ -1008,15 +1042,7 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit-${{{{ runner.os }}}}-${{{{ hashFiles('.pre-commit-config.yaml') }}}}
 
-      - name: Lint (ruff)
-        run: uv run ruff check src tests
-
-      - name: Type check (mypy)
-        run: uv run mypy src
-
-      - name: Test (pytest)
-        run: uv run pytest
-"""
+{ci_steps}"""
     return f"""name: CI
 
 on:
@@ -1057,15 +1083,7 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit-${{{{ runner.os }}}}-${{{{ hashFiles('.pre-commit-config.yaml') }}}}
 
-      - name: Lint (ruff)
-        run: ruff check src tests
-
-      - name: Type check (mypy)
-        run: mypy src
-
-      - name: Test (pytest)
-        run: pytest
-"""
+{ci_steps}"""
 
 
 def tpl_init(name: str) -> str:
@@ -1710,7 +1728,7 @@ def create_project(
     write_file(root / ".python-version", tpl_python_version())
     write_file(root / "README.md", tpl_readme(name, use_uv))
     write_file(root / "CHANGELOG.md", tpl_changelog())
-    write_file(root / "Makefile", tpl_makefile(use_uv))
+    write_file(root / "Makefile", tpl_makefile(use_uv, profile))
     write_file(root / ".pre-commit-config.yaml", tpl_precommit())
     if license_type.upper() == "MIT":
         write_file(root / "LICENSE", tpl_license_mit(author_name, year))
@@ -1721,7 +1739,7 @@ def create_project(
     write_file(root / ".github" / "ISSUE_TEMPLATE" / "feature_request.md", tpl_issue_feature())
     write_file(root / ".github" / "CODEOWNERS", tpl_codeowners())
     write_file(root / ".github" / "dependabot.yml", tpl_dependabot())
-    write_file(root / ".github" / "workflows" / "ci.yml", tpl_ci_workflow(use_uv))
+    write_file(root / ".github" / "workflows" / "ci.yml", tpl_ci_workflow(use_uv, profile))
 
     # ---- src 레이아웃 (실제 패키지 본체) --------------------------------
     pkg = root / "src" / name
@@ -1846,9 +1864,13 @@ def create_project(
     print(f"  cd {name}")
     if do_venv and use_uv:
         # uv 모드: 모든 의존성이 이미 설치되어 있으므로 바로 실행만 하면 됨.
+        # 프로필별로 안내 라인을 다르게 — 깔리지도 않은 도구를 추천하면 사용자가 혼란.
         print(f"  uv run {name} --help          # try the CLI")
-        print("  uv run pytest                 # run tests")
-        print("  uv run jupyter lab            # open notebooks")
+        if profile in ("script", "research"):
+            print("  uv run pytest                 # run tests")
+        if profile == "research":
+            print("  # 노트북: notebooks/ 폴더를 VS Code/PyCharm 에서 열기")
+            print("  #   브라우저 UI 가 필요하면: uv add --group notebook jupyter")
     elif do_venv and not use_uv:
         # pip 모드: venv 활성화 + 패키지 설치를 사용자가 직접 해야 함.
         print("  source .venv/bin/activate     # macOS/Linux")
@@ -1856,13 +1878,18 @@ def create_project(
         print("  python -m pip install --upgrade pip")
         print("  pip install -e .")
         print("  pip install --group dev       # requires pip 25.1+")
-        print("  pre-commit install")
+        if profile == "research":
+            print("  pre-commit install")
         print(f"  {name} --help                 # try the CLI")
+        if profile in ("script", "research"):
+            print("  pytest                        # run tests")
     else:
         # venv 자체를 건너뛴 경우: 환경 구성부터 끝까지 모두 수동.
         print("  # set up your environment, then:")
         print("  pip install -e . && pip install --group dev")
         print(f"  {name} --help")
+        if profile in ("script", "research"):
+            print(f"  pytest                        # run tests")
 
 
 # --------------------------------------------------------------------------- #
