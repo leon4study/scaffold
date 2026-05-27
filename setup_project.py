@@ -162,7 +162,7 @@ def detect_git_user() -> tuple[str, str]:
     """
     name = DEFAULT_AUTHOR_NAME
     email = DEFAULT_AUTHOR_EMAIL
-    for key, default in (("user.name", name), ("user.email", email)):
+    for key, _ in (("user.name", name), ("user.email", email)):
         try:
             result = subprocess.run(
                 ["git", "config", "--get", key],
@@ -326,10 +326,11 @@ lint = [
     "mypy>=1.13",                    # static type checker
 ]
 notebook = [
-    "jupyter>=1.0",
-    "ipykernel>=6.29",
-    "nbqa>=1.8",                     # run ruff/black on .ipynb files
-    "nbstripout>=0.7",               # strip outputs before commit
+    # VS Code / PyCharm 에서 .ipynb 를 쓰는 것을 가정한 슬림 구성.
+    # 브라우저 기반 Jupyter Lab UI 가 필요하면 `uv add --group notebook jupyter` 추가.
+    "ipykernel>=6.29",               # 셀 실행 커널 (에디터/IDE 가 가져다 씀)
+    "nbqa>=1.8",                     # .ipynb 에 ruff/black 적용
+    "nbstripout>=0.7",               # 커밋 전 셀 출력 자동 제거
 ]
 dev = [
     {{include-group = "test"}},
