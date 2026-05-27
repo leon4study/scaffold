@@ -3,6 +3,8 @@
 범용 Python 프로젝트 스캐폴더 (uv 우선, 2026 에디션).
 프로덕션 수준의 Python 프로젝트 골격을 생성하는 단일 파일 제너레이터입니다.
 
+> 왜 이렇게 동작하는지(설계 결정의 *이유*) 가 궁금하면 [docs/design-decisions.md](docs/design-decisions.md) 를 참고하세요.
+
 ## 빠른 시작
 
 ```bash
