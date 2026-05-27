@@ -22,6 +22,49 @@ python setup_project.py myproject --no-git --no-venv
 > The script itself uses only stdlib, so **no venv activation is required to run it**.
 > If `uv` is installed, the script auto-calls `uv lock` + `uv sync` for the generated project.
 
+## One-liner from anywhere (zsh function)
+
+To create projects under `~/GitStudy/<name>/` from any directory without `cd`-ing first,
+add this function to `~/.zshrc`:
+
+```zsh
+# --- Python project scaffolder (GitStudy/scaffold) ---
+# newpy <name> [--modules a,b,c] [--no-uv] [--no-venv] [--no-git]
+#   → creates ~/GitStudy/<name>/ regardless of current directory
+newpy() {
+  (cd ~/GitStudy && python ~/GitStudy/scaffold/setup_project.py "$@")
+}
+```
+
+Install it:
+
+```bash
+cp ~/.zshrc ~/.zshrc.backup        # safety backup
+cat <<'EOF' >> ~/.zshrc
+
+# --- Python project scaffolder (GitStudy/scaffold) ---
+newpy() {
+  (cd ~/GitStudy && python ~/GitStudy/scaffold/setup_project.py "$@")
+}
+EOF
+source ~/.zshrc                    # reload in current shell
+type newpy                         # verify: should show the function body
+```
+
+Then from anywhere:
+
+```bash
+newpy myproject                                    # default (uv + git + MIT)
+newpy myproject --modules detection,tracking,ui    # with submodules
+newpy myproject --no-uv                            # pip mode
+newpy myproject --no-venv --no-git                 # files only
+```
+
+Notes:
+- The `( ... )` **subshell** means the `cd` doesn't affect your current terminal.
+- `"$@"` forwards all flags verbatim.
+- Editing `setup_project.py` takes effect immediately — only edit `~/.zshrc` if you want to change the function itself (then `source ~/.zshrc`).
+
 ## Flags
 
 | Flag | Default | Meaning |
