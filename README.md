@@ -105,15 +105,16 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 |---|---|---|
 | `name` (위치 인자) | 필수 | 프로젝트 폴더 이름. `[a-zA-Z][a-zA-Z0-9_-]*` 패턴을 따라야 합니다. |
 | `--profile docs\|script\|research` | `script` | 개발 도구 프로필 (위 "프로필 선택 기준" 참고). |
-| `--modules a,b,c` | `""` | `src/<name>/` 아래에 만들 서브모듈을 쉼표로 구분하여 지정. |
+| `--modules a,b,c` | `[]` | `src/<name>/` 아래에 만들 서브모듈. **공백/쉼표/혼합 모두 허용** (`--modules a,b,c` / `--modules a b c` / `--modules "a, b, c"`). |
 | `--no-uv` | uv 모드 | uv 대신 일반 `python -m venv` + pip 사용. |
 | `--no-venv` | venv 켜짐 | `.venv` / `uv sync` 생성을 건너뜀. |
 | `--no-git` | git 켜짐 | `git init` + 첫 커밋을 건너뜀. |
 | `--license MIT\|NONE` | `MIT` | 생성할 라이선스 파일. |
 | `--github none\|private\|public` | `none` | GitHub 원격 저장소 자동 생성 (gh CLI 필요). |
-| `-D` / `--delete` | off | 삭제 모드 (폴더 이름 재입력 필요). |
+| `-d` / `--delete` | off | **안전 삭제** — 폴더 이름 재입력 필요. |
+| `-D` | off | **강제 삭제** — `-d --yes` 와 동일. 확인 생략. |
 | `--remote` | off | 삭제 모드에서 GitHub 레포도 함께 삭제. |
-| `--yes` | off | 삭제 모드에서 확인 프롬프트 생략. |
+| `--yes` | off | 확인 프롬프트 생략 (`-d` 와 함께 쓰면 `-D` 와 동등). |
 
 `python setup_project.py --help`를 실행하면 직접 확인할 수 있습니다.
 
