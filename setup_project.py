@@ -1,110 +1,127 @@
 """
-Universal Python project scaffolder (uv-first, 2026 edition).
+범용 Python 프로젝트 스캐폴더 (uv 우선, 2026 에디션).
 
 ────────────────────────────────────────────────────────────────────────────
-WHAT THIS SCRIPT DOES
+이 스크립트가 하는 일
 ────────────────────────────────────────────────────────────────────────────
-Generates a production-grade Python project skeleton in a new folder, with:
+새 폴더 안에 프로덕션 수준의 Python 프로젝트 골격을 생성합니다. 구성 요소:
 
   • pyproject.toml
-        - PEP 621 [project] metadata (name, version, deps, etc.)
-        - PEP 735 [dependency-groups] for dev/test/lint/notebook (publish-safe)
-        - [tool.uv]/[tool.coverage]/[tool.ruff]/[tool.black]/[tool.mypy]
-  • Editor / VCS hygiene
-        - .gitignore, .gitattributes (LF normalization), .editorconfig
-        - .python-version (read by uv/pyenv)
+        - PEP 621 [project] 메타데이터 (이름, 버전, 의존성 등)
+        - PEP 735 [dependency-groups] (dev/test/lint/notebook) — 배포 시
+          새어 나가지 않는 안전한 개발용 의존성 그룹
+        - [tool.uv] / [tool.coverage] / [tool.ruff] / [tool.black] / [tool.mypy]
+  • 에디터 / VCS 위생 파일
+        - .gitignore, .gitattributes (LF 정규화), .editorconfig
+        - .python-version (uv / pyenv 가 읽어서 Python 버전 자동 선택)
         - .env.example
-  • Dev tooling
-        - .pre-commit-config.yaml (ruff, black, nbstripout, nbqa, std hooks)
-        - Makefile with a self-documenting `help` target
-  • GitHub automation
-        - .github/workflows/ci.yml (matrix on Python 3.11/3.12, with cache &
-          concurrency-cancel)
-        - PR template, issue templates (bug/feature)
+  • 개발 도구
+        - .pre-commit-config.yaml (ruff, black, nbstripout, nbqa, 표준 훅)
+        - 자기 자신을 설명하는 `help` 타깃이 있는 Makefile
+  • GitHub 자동화
+        - .github/workflows/ci.yml (Python 3.11/3.12 매트릭스, 캐시 +
+          동시 실행 자동 취소 포함)
+        - PR 템플릿, 이슈 템플릿 (버그 / 기능 요청)
         - CODEOWNERS, dependabot.yml
-  • Source layout (src-layout)
-        - src/<name>/__init__.py    (no import side-effects)
-        - src/<name>/__main__.py    (so `python -m <name>` works)
-        - src/<name>/cli.py         (typer + loguru, logging set in callback)
+  • 소스 레이아웃 (src-layout)
+        - src/<name>/__init__.py    (임포트 시 사이드 이펙트 없음)
+        - src/<name>/__main__.py    (`python -m <name>` 로 실행 가능)
+        - src/<name>/cli.py         (typer + loguru, 로깅은 콜백에서 설정)
         - src/<name>/config.py      (pydantic-settings)
-        - Optional pipeline submodules via --modules
-  • Tests
-        - tests/test_smoke.py       (package import / config load)
-        - tests/test_cli.py         (typer CliRunner)
-        - tests/conftest.py         (shared fixtures)
-  • Docs
-        - README.md (with badges)
-        - CHANGELOG.md (Keep a Changelog format)
+        - --modules 플래그로 파이프라인 서브모듈을 선택적으로 추가
+  • 테스트
+        - tests/test_smoke.py       (패키지 import / config 로드 확인)
+        - tests/test_cli.py         (typer 의 CliRunner 사용)
+        - tests/conftest.py         (공용 fixture)
+  • 문서
+        - README.md (배지 포함)
+        - CHANGELOG.md (Keep a Changelog 형식)
         - docs/architecture.md
-        - docs/cross-platform.md (Mac/Windows/Linux + CUDA recipes)
+        - docs/cross-platform.md (Mac/Windows/Linux + CUDA 가이드)
+        - docs/uv-cheatsheet.md (uv 명령어 + pip 와의 차이 정리)
         - docs/adr/0001-record-architecture-decisions.md
-  • Data / models / notebooks placeholders
-        - data/{raw,processed,external}/.gitkeep, models/, notebooks/, logs/
-  • Optional automation:
-        - git init + first commit
-        - uv sync (creates .venv + installs dev deps + generates uv.lock)
-        - pre-commit install
+  • 데이터 / 모델 / 노트북 / Claude skills 자리잡이 폴더
+        - data/{raw,processed,external}/.gitkeep, models/, notebooks/, logs/, skills/
+  • 선택적 자동화:
+        - git init + 첫 커밋
+        - uv sync (.venv 생성 + dev 의존성 설치 + uv.lock 생성)
+        - pre-commit 훅 설치
 
 ────────────────────────────────────────────────────────────────────────────
-USAGE
+사용법
 ────────────────────────────────────────────────────────────────────────────
-    # Default (uv mode — recommended). Creates folder, git inits, runs `uv sync`.
+    # 기본값 (uv 모드 — 권장). 폴더 생성, git 초기화, `uv sync` 까지 자동 수행.
     python setup_project.py myproject
 
-    # Add ML pipeline submodules under src/myproject/
+    # src/myproject/ 아래에 ML 파이프라인 서브모듈 같이 생성
     python setup_project.py collision_detection \\
         --modules detection,tracking,risk,ui
 
-    # Plain venv + pip mode (no uv). Useful in conda-only or air-gapped envs.
+    # uv 미사용, 일반 venv + pip 모드. conda 환경이거나 인터넷이 막힌 환경에서 유용.
     python setup_project.py myproject --no-uv
 
-    # Skip auto-install entirely (just write files + git init).
+    # 자동 설치 건너뛰기 (파일 생성 + git 초기화만).
     python setup_project.py myproject --no-venv
 
-    # Skip git init too (just write files).
+    # git 초기화도 건너뛰기 (파일만 생성).
     python setup_project.py myproject --no-git --no-venv
 
-    # No license file.
+    # 라이선스 파일 없이.
     python setup_project.py myproject --license NONE
 
-────────────────────────────────────────────────────────────────────────────
-FLAGS
-────────────────────────────────────────────────────────────────────────────
-    name              Project folder name (positional). Validated as
-                      [a-zA-Z][a-zA-Z0-9_-]*.
-    --modules X,Y,Z   Comma-separated submodules under src/<name>/.
-    --no-uv           Use plain `python -m venv` + pip instead of uv.
-    --no-venv         Skip venv / uv-sync creation entirely.
-    --no-git          Skip `git init` + first commit.
-    --license MIT|NONE  License file (default: MIT).
+    # GitHub 원격 저장소까지 자동 생성 + 푸시 (gh CLI 필요, 로그인 상태여야 함).
+    python setup_project.py myproject --github private    # 비공개
+    python setup_project.py myproject --github public     # 공개
+
+    # 프로젝트 삭제 (안전장치: 폴더 이름을 다시 입력해야 진행됨).
+    python setup_project.py myproject -D                  # 로컬 폴더만
+    python setup_project.py myproject -D --remote         # GitHub 레포까지
+    python setup_project.py myproject -D --remote --yes   # 확인 생략 (자동화)
 
 ────────────────────────────────────────────────────────────────────────────
-RESULT WORKFLOW (uv mode)
+플래그
 ────────────────────────────────────────────────────────────────────────────
-After this script finishes:
+    name              프로젝트 폴더 이름 (위치 인자).
+                      [a-zA-Z][a-zA-Z0-9_-]* 패턴이어야 함.
+    --modules X,Y,Z   src/<name>/ 아래에 만들 서브모듈을 쉼표로 구분.
+    --no-uv           uv 대신 일반 `python -m venv` + pip 사용.
+    --no-venv         venv / uv-sync 생성을 완전히 건너뜀.
+    --no-git          `git init` + 첫 커밋을 건너뜀.
+    --license MIT|NONE  생성할 라이선스 파일 (기본값: MIT).
+    --github none|private|public
+                      GitHub 원격 저장소 자동 생성 (기본값: none).
+                      gh CLI 가 설치되고 `gh auth login` 이 끝나 있어야 함.
+    -D, --delete      [삭제 모드] name 으로 지정한 폴더를 삭제.
+    --remote          삭제 모드에서 GitHub 레포도 함께 삭제.
+    --yes             삭제 모드에서 확인 프롬프트를 건너뜀.
+
+────────────────────────────────────────────────────────────────────────────
+스크립트 종료 후 흐름 (uv 모드 기준)
+────────────────────────────────────────────────────────────────────────────
+스크립트가 끝나면 다음 명령어들을 바로 사용할 수 있습니다:
     cd <name>
-    uv run <name> --help    # CLI is already installed
-    uv run pytest           # tests work out of the box
-    uv run jupyter lab      # notebooks (notebook group is in dev deps)
+    uv run <name> --help    # CLI 가 이미 설치되어 있어 바로 실행 가능
+    uv run pytest           # 테스트가 즉시 동작
+    uv run jupyter lab      # 노트북 (notebook 그룹이 dev 의존성에 포함)
 
-To add a dependency later:
-    uv add pandas           # runtime dep
-    uv add --group test pytest-mock   # test-only dep
+나중에 의존성을 추가할 때:
+    uv add pandas                       # 런타임 의존성 추가
+    uv add --group test pytest-mock     # 테스트 전용 의존성 추가
 
-To regenerate the lockfile:
+락파일 재생성:
     uv lock
 
 ────────────────────────────────────────────────────────────────────────────
-PHILOSOPHY
+설계 철학
 ────────────────────────────────────────────────────────────────────────────
-- src-layout (code under src/<name>/) — prevents accidental imports of
-  the in-tree package vs the installed one.
-- No import side effects — importing the package does NOT touch the
-  filesystem (logging is set up in the CLI callback, not __init__.py).
-- Publish-safe dev deps — dev tools live in [dependency-groups], NOT in
-  [project.optional-dependencies], so they don't leak into PyPI metadata.
-- Cross-platform by default — .gitattributes normalizes line endings;
-  pathlib everywhere; CI runs on Linux/macOS/Windows.
+- src-layout (코드를 src/<name>/ 아래에 둠) — 트리 안의 패키지와
+  실제로 설치된 패키지가 충돌해 잘못된 쪽이 import 되는 사고를 방지.
+- 임포트 시 사이드 이펙트 없음 — 패키지를 import 한다고 해서 파일시스템에
+  손대지 않음. 로깅 설정은 __init__.py 가 아닌 CLI 콜백에서 수행.
+- 배포 안전한 dev 의존성 — 개발 도구는 [project.optional-dependencies] 가
+  아니라 [dependency-groups] 에 두기 때문에 PyPI 메타데이터로 새지 않음.
+- 기본적으로 크로스 플랫폼 — .gitattributes 로 줄바꿈 정규화,
+  경로는 어디서나 pathlib 사용, CI 는 Linux/macOS/Windows 매트릭스에서 실행.
 """
 
 from __future__ import annotations
@@ -117,25 +134,31 @@ import sys
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
-# Constants
+# 상수
 # --------------------------------------------------------------------------- #
 
-PYTHON_VERSION = "3.11"  # Pinned via .python-version; uv auto-installs this.
-DEFAULT_AUTHOR_NAME = "Your Name"
-DEFAULT_AUTHOR_EMAIL = "you@example.com"
+# 생성되는 프로젝트의 Python 최소 버전. .python-version 파일에도 기록되어
+# uv / pyenv 가 자동으로 이 버전을 설치/선택해 줍니다.
+PYTHON_VERSION = "3.11"
+DEFAULT_AUTHOR_NAME = "Hyunjun"
+DEFAULT_AUTHOR_EMAIL = "leo4study@gmail.com"
 
 
 # --------------------------------------------------------------------------- #
-# Helpers — environment detection
-#   Read git config / current year / uv presence, with safe fallbacks so the
-#   scaffolder works on machines that don't have git or uv installed.
+# 헬퍼 — 실행 환경 감지
+#   git 설정값 / 현재 연도 / uv 설치 여부를 읽되, 해당 도구가 없는 환경에서도
+#   스크립트가 깨지지 않도록 모두 안전한 기본값으로 폴백합니다.
 # --------------------------------------------------------------------------- #
 
 def detect_git_user() -> tuple[str, str]:
-    """Read user.name / user.email from `git config --global` (or local).
+    """`git config --global` (없으면 로컬) 에서 user.name / user.email 을 읽습니다.
 
-    Falls back to placeholder strings if git is missing or no config is set,
-    so users can still run the scaffolder cleanly. Returns (name, email).
+    git 자체가 설치되어 있지 않거나 설정값이 비어 있으면 placeholder 문자열
+    (DEFAULT_AUTHOR_NAME / DEFAULT_AUTHOR_EMAIL) 로 폴백하므로, git 이 없는
+    환경에서도 스캐폴더는 정상 동작합니다.
+
+    Returns:
+        (name, email) 튜플. 둘 다 항상 문자열이 채워져 있음이 보장됩니다.
     """
     name = DEFAULT_AUTHOR_NAME
     email = DEFAULT_AUTHOR_EMAIL
@@ -151,42 +174,78 @@ def detect_git_user() -> tuple[str, str]:
                 else:
                     email = result.stdout.strip()
         except FileNotFoundError:
-            # git not installed — fall back to defaults.
+            # git 자체가 설치되어 있지 않은 경우 — 기본값을 그대로 사용.
             pass
     return name, email
 
 
 def current_year() -> int:
-    """Year for LICENSE / copyright lines (so it's never frozen)."""
+    """LICENSE / copyright 줄에 박을 현재 연도를 반환.
+
+    스크립트 안에 연도를 하드코딩하면 매년 직접 갱신해야 하므로,
+    실행 시점의 연도를 항상 새로 읽어 옵니다.
+    """
     return datetime.datetime.now().year
 
 
 def have_uv() -> bool:
-    """Check if `uv` is on PATH. Used to decide install mode + give hints."""
+    """`uv` 실행 파일이 PATH 에 있는지 확인.
+
+    설치 모드 결정(uv 사용 가능 여부) 과 사용자에게 안내 메시지를 보여 줄
+    때 활용됩니다.
+    """
     return shutil.which("uv") is not None
 
 
+def have_gh() -> bool:
+    """GitHub 공식 CLI (`gh`) 가 PATH 에 있는지 확인.
+
+    `--github` 플래그를 받았을 때만 GitHub 원격 저장소를 자동 생성하는데,
+    그 전에 이 함수로 `gh` 설치 여부를 확인합니다. 없으면 자동 생성을
+    건너뛰고 안내 메시지만 출력합니다.
+    """
+    return shutil.which("gh") is not None
+
+
+def gh_is_authenticated() -> bool:
+    """`gh auth status` 가 성공하는지 확인 — 즉 로그인되어 있는지.
+
+    `gh` 자체는 깔려 있어도 `gh auth login` 을 한 적이 없으면 repo 생성이
+    실패하므로, 미리 한 번 검사해서 친절한 에러 메시지를 줍니다.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True, text=True, check=False,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
 # --------------------------------------------------------------------------- #
-# File content templates
-#   Each tpl_* function returns the *content* of one file. They are pure
-#   string generators — no I/O — so they are easy to unit-test.
+# 파일 내용 템플릿
+#   각 tpl_* 함수는 한 개 파일의 *내용*(문자열)을 반환합니다. I/O 가 전혀
+#   없는 순수 함수이므로 단위 테스트하기 쉽습니다.
 #
-#   Why f-strings: keeps templates inline and readable. The trade-off is
-#   that literal `{` / `}` in the output must be doubled (`{{` / `}}`).
+#   왜 f-string 인가: 템플릿을 코드 안에 그대로 두어 가독성이 좋습니다.
+#   다만 출력 결과에 리터럴 `{` / `}` 가 들어가야 하면 `{{` / `}}` 로
+#   두 번 써야 한다는 트레이드오프가 있습니다.
 # --------------------------------------------------------------------------- #
 
 def tpl_pyproject(name: str, author_name: str, author_email: str) -> str:
-    """Generate pyproject.toml.
+    """pyproject.toml 의 내용을 생성합니다.
 
-    Key choices:
-      - [dependency-groups] (PEP 735) for dev tools — these don't leak into
-        the published wheel's METADATA, unlike [project.optional-dependencies].
-      - [project.optional-dependencies] is left commented out, reserved for
-        true user-facing extras (e.g. gpu/cpu/plotting backends).
-      - [tool.uv].default-groups = ["dev"] so `uv sync` picks up dev deps
-        automatically — new contributors only need one command.
-      - Tool versions use `>=` minimums so `uv sync` always resolves the
-        latest compatible release. Pin via uv.lock for reproducibility.
+    주요 설계 결정:
+      - 개발 도구는 [dependency-groups] (PEP 735) 에 둠 — 이렇게 하면
+        wheel 의 METADATA 로 새지 않아 배포해도 안전.
+        ([project.optional-dependencies] 와 결정적인 차이)
+      - [project.optional-dependencies] 는 주석 처리해서 비워 둠.
+        실제 사용자 대상 extras (예: gpu/cpu/plotting 백엔드 선택) 용으로 예약.
+      - [tool.uv].default-groups = ["dev"] 로 설정하여 `uv sync` 만으로
+        dev 의존성까지 자동으로 깔리도록 함 — 새 기여자는 명령 한 번이면 끝.
+      - 도구 버전은 `>=` 최소 버전만 표기. `uv sync` 가 항상 호환되는
+        최신 릴리스를 해석하도록 하고, 정확한 버전 고정은 uv.lock 에 맡김.
     """
     py_target = PYTHON_VERSION.replace(".", "")
     return f"""[build-system]
@@ -328,8 +387,12 @@ fail_under = 0                       # raise this once you add real tests
 
 
 def tpl_gitignore() -> str:
-    """Standard Python + project-specific ignores. Excludes ML artifacts
-    (*.pt/*.pkl/*.onnx) and dataset directories by default."""
+    """표준 Python 무시 항목 + 프로젝트별 무시 항목.
+
+    기본적으로 ML 결과물(*.pt / *.pkl / *.onnx) 과 데이터셋 디렉토리
+    (data/raw, data/processed, data/external) 를 제외합니다.
+    빈 디렉토리만 유지하기 위해 .gitkeep 만 예외로 추적합니다.
+    """
     return """# --- Python ---------------------------------------------------------
 __pycache__/
 *.py[cod]
@@ -383,8 +446,13 @@ mlruns/
 
 
 def tpl_gitattributes() -> str:
-    """Force LF line endings on text files; mark known binaries as binary
-    so git doesn't try to diff or normalize them."""
+    """텍스트 파일의 줄바꿈을 LF 로 강제 정규화.
+
+    Windows 전용 스크립트(.cmd/.bat/.ps1) 만 CRLF 로 두고, 알려진 바이너리
+    파일들은 명시적으로 binary 로 표시해 git 이 diff 나 줄바꿈 정규화를
+    시도하지 않도록 합니다. Mac/Windows 가 섞인 팀에서 줄바꿈 차이로
+    diff 가 폭주하는 사고를 막아 줍니다.
+    """
     return """# Auto-detect text files and normalize line endings to LF
 * text=auto eol=lf
 
@@ -414,8 +482,11 @@ def tpl_gitattributes() -> str:
 
 
 def tpl_editorconfig() -> str:
-    """Editor-agnostic style baseline (indentation, charset, EOL).
-    Read by VSCode, JetBrains, Vim, etc."""
+    """에디터 비종속적인 코드 스타일 기준선 (들여쓰기, 문자셋, 줄바꿈).
+
+    VSCode, JetBrains, Vim 등 거의 모든 주요 에디터가 이 파일을 자동으로
+    읽어 적용하므로, 팀원마다 에디터 설정이 달라도 일관된 스타일이 유지됩니다.
+    """
     return """root = true
 
 [*]
@@ -435,8 +506,12 @@ indent_style = tab
 
 
 def tpl_env_example() -> str:
-    """Template for .env (gitignored). LOG_DIR is opt-in to avoid creating
-    a logs/ folder by default — only when the user explicitly enables it."""
+    """.env (gitignore 대상) 의 템플릿.
+
+    LOG_DIR 은 기본적으로 주석 처리해 두는데, 이유는 사용자가 명시적으로
+    켜기 전까지는 logs/ 폴더가 만들어지지 않게 하기 위함입니다. 비밀값을
+    실수로 커밋하지 않도록 실제 .env 파일은 .gitignore 에 포함되어 있습니다.
+    """
     return """# Copy this file to `.env` and fill in your values.
 # `.env` is gitignored; never commit secrets.
 
@@ -448,13 +523,21 @@ LOG_LEVEL=INFO
 
 
 def tpl_python_version() -> str:
-    """Pin Python version. uv reads this and auto-installs the right Python."""
+    """.python-version 파일 내용. Python 버전 한 줄만 들어갑니다.
+
+    uv 와 pyenv 모두 이 파일을 인식해서 해당 Python 버전을 자동으로
+    설치/선택해 주므로, 팀원이 Python 버전을 따로 맞춰 줄 필요가 없습니다.
+    """
     return f"{PYTHON_VERSION}\n"
 
 
 def tpl_readme(name: str, use_uv: bool) -> str:
-    """README with status badges and install/usage instructions appropriate
-    to the chosen install mode (uv vs pip)."""
+    """상단 배지와 설치/사용법 안내가 포함된 README 를 생성.
+
+    설치 모드(uv vs pip) 에 따라 표시되는 명령어 블록이 달라집니다.
+    use_uv=True 면 `uv sync` / `uv run` 흐름을, False 면 `python -m venv` +
+    pip 흐름을 안내합니다.
+    """
     if use_uv:
         install_block = """```bash
 # 1) Install uv if not already (https://docs.astral.sh/uv/)
@@ -531,7 +614,7 @@ MIT
 
 
 def tpl_license_mit(author_name: str, year: int) -> str:
-    """MIT license body with detected author + current year."""
+    """감지된 작성자 이름과 현재 연도가 채워진 MIT 라이선스 본문을 생성."""
     return f"""MIT License
 
 Copyright (c) {year} {author_name}
@@ -557,8 +640,11 @@ SOFTWARE.
 
 
 def tpl_changelog() -> str:
-    """Keep a Changelog format. Update [Unreleased] as you make changes;
-    move entries under a versioned heading on release."""
+    """Keep a Changelog 형식의 CHANGELOG.md 를 생성.
+
+    변경 사항이 생길 때마다 [Unreleased] 섹션에 기록하고, 릴리스 시점에
+    버전 번호가 붙은 헤딩 아래로 이동시키는 흐름을 권장합니다.
+    """
     return """# Changelog
 
 All notable changes to this project will be documented in this file.
@@ -574,9 +660,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 def tpl_makefile(use_uv: bool) -> str:
-    """Self-documenting Makefile. `make help` lists targets via grep+awk
-    over `## ` doc-comments. Recipes use `uv run` (uv mode) or activate
-    instructions (pip mode)."""
+    """자기 자신을 설명하는 Makefile 을 생성.
+
+    `make help` 를 실행하면 grep + awk 로 `## ` 형태의 문서 주석을 스캔해
+    모든 타깃 목록을 보여 줍니다. 레시피는 uv 모드면 `uv run …` 을, pip
+    모드면 일반 명령(또는 venv 활성화 안내) 을 사용합니다.
+    """
     if use_uv:
         return f""".PHONY: help setup install test lint format clean
 
@@ -635,8 +724,16 @@ clean:  ## Remove caches and build artifacts
 
 
 def tpl_precommit() -> str:
-    """Pre-commit hooks: standard hygiene + ruff/black + notebook hygiene
-    (nbstripout strips outputs, nbqa applies ruff/black to .ipynb cells)."""
+    """pre-commit 훅 설정.
+
+    포함 내용:
+      - 표준 위생 훅 (공백 제거, 파일 끝 개행, 큰 파일 차단, 충돌 마커 확인 등)
+      - ruff (린트 + 포맷)
+      - black (포맷터 — ruff-format 과 중복이지만 안전망)
+      - nbstripout: 노트북 출력(셀 실행 결과) 을 커밋에서 자동 제거해
+        diff 폭주를 방지
+      - nbqa: ruff/black 을 .ipynb 의 코드 셀에도 적용해 일관성 유지
+    """
     return """# Run on every git commit. Update with: pre-commit autoupdate
 repos:
   # ── Standard hygiene ────────────────────────────────────────────────
@@ -683,7 +780,11 @@ repos:
 
 
 def tpl_pr_template() -> str:
-    """Pull-request body template, surfaced by GitHub on PR creation."""
+    """Pull Request 본문 템플릿.
+
+    GitHub 에서 PR 을 새로 생성할 때 이 템플릿이 자동으로 채워져 표시되므로,
+    기여자가 변경 사항/이유/테스트 방법을 빠뜨리지 않고 적도록 유도합니다.
+    """
     return """## What
 <!-- 무엇이 바뀌나 (1-3줄) -->
 
@@ -702,7 +803,11 @@ def tpl_pr_template() -> str:
 
 
 def tpl_issue_bug() -> str:
-    """Bug report issue template."""
+    """버그 리포트용 이슈 템플릿.
+
+    재현 방법 / 기대 결과 / 실제 결과 / 환경 정보를 모두 받도록 해서
+    디버깅 첫 단계에 필요한 정보가 누락되지 않게 합니다.
+    """
     return """---
 name: Bug report
 about: Report something that's broken
@@ -729,7 +834,11 @@ labels: bug
 
 
 def tpl_issue_feature() -> str:
-    """Feature request issue template."""
+    """기능 요청용 이슈 템플릿.
+
+    "어떤 문제를 해결하려고 하나" 를 먼저 묻도록 구성해, 해결책 자체보다
+    풀고자 하는 문제 정의에 집중하도록 유도합니다.
+    """
     return """---
 name: Feature request
 about: Propose a new feature or improvement
@@ -747,8 +856,11 @@ labels: enhancement
 
 
 def tpl_codeowners() -> str:
-    """CODEOWNERS makes GitHub auto-request reviews from listed handles
-    when a matched file changes. Edit handles before pushing."""
+    """CODEOWNERS 파일.
+
+    여기에 등록된 사용자/팀은 매칭되는 파일이 변경될 때 GitHub 가 자동으로
+    리뷰어로 지정해 줍니다. 원격에 푸시하기 전에 실제 핸들로 바꿔야 동작합니다.
+    """
     return """# Default reviewers for everything (edit team handles before pushing)
 # *       @your-team
 
@@ -760,7 +872,12 @@ def tpl_codeowners() -> str:
 
 
 def tpl_dependabot() -> str:
-    """Dependabot watches for outdated deps and opens PRs to bump them."""
+    """Dependabot 설정.
+
+    pip 의존성은 매주, GitHub Actions 워크플로 버전은 매월 점검해
+    오래된 버전이 있으면 자동으로 업그레이드 PR 을 열어 줍니다.
+    한 번에 열리는 PR 은 최대 5 개로 제한해 노이즈를 줄였습니다.
+    """
     return """version: 2
 updates:
   - package-ecosystem: "pip"
@@ -777,12 +894,14 @@ updates:
 
 
 def tpl_ci_workflow(use_uv: bool) -> str:
-    """GitHub Actions CI: lint + type check + test on Linux/Mac/Win matrix.
+    """GitHub Actions CI 워크플로: Linux/Mac/Win 매트릭스에서 린트 + 타입체크 + 테스트.
 
-    Optimizations:
-      - `concurrency:` cancels superseded runs on the same branch (saves CI minutes).
-      - uv mode uses astral-sh/setup-uv with built-in cache (much faster than pip).
-      - pre-commit cache shaves seconds on repeated runs.
+    적용된 최적화:
+      - `concurrency:` — 같은 브랜치에서 새 푸시가 들어오면 진행 중이던
+        이전 실행을 자동 취소해서 CI 분(분당 과금) 을 절약.
+      - uv 모드에서는 astral-sh/setup-uv 액션의 내장 캐시를 사용해
+        의존성 설치가 pip 대비 훨씬 빠름.
+      - pre-commit 캐시를 별도로 두어 반복 실행 시간을 더 줄임.
     """
     if use_uv:
         return f"""name: CI
@@ -887,11 +1006,12 @@ jobs:
 
 
 def tpl_init(name: str) -> str:
-    """Package __init__.py.
+    """패키지의 __init__.py 를 생성.
 
-    Intentionally minimal — NO logging setup, NO filesystem touches. Importing
-    the package must not have side effects (otherwise tests, REPL inspection,
-    and downstream importers misbehave). Logging is configured in cli.py.
+    의도적으로 최소화 — 로깅 설정도, 파일시스템 접근도 하지 않습니다.
+    패키지를 import 하는 것 자체가 사이드 이펙트를 가지면 안 되기 때문입니다.
+    (사이드 이펙트가 있으면 테스트, REPL 검사, 다른 패키지의 import 등에서
+    예상 못한 동작이 발생합니다.) 실제 로깅은 cli.py 의 콜백에서 설정합니다.
     """
     return f'''"""Top-level package for {name}."""
 
@@ -900,8 +1020,11 @@ __version__ = "0.1.0"
 
 
 def tpl_main(name: str) -> str:
-    """__main__.py: enables `python -m {name}` as an alternative to the
-    console-script entry point."""
+    """__main__.py 를 생성.
+
+    이 파일이 있으면 `python -m {name}` 명령으로도 CLI 를 실행할 수 있습니다.
+    [project.scripts] 로 등록된 콘솔 스크립트와 동등한 대체 실행 경로 역할.
+    """
     return f'''"""Entry point for `python -m {name}`."""
 
 from {name}.cli import app
@@ -912,10 +1035,12 @@ if __name__ == "__main__":
 
 
 def tpl_config(name: str) -> str:
-    """Pydantic-settings model loaded from environment / .env.
+    """환경 변수 / .env 파일에서 값을 읽어 오는 pydantic-settings 모델을 생성.
 
-    Why pydantic-settings: type validation + .env support + clear
-    documentation of all configurable knobs in one place.
+    pydantic-settings 를 쓰는 이유:
+      - 타입 검증이 자동으로 됨 (잘못된 값은 시작 시점에 즉시 실패)
+      - .env 파일 지원이 내장되어 있음
+      - 설정 가능한 모든 항목이 한 클래스에 모여 있어 문서화 효과
     """
     return f'''"""Application configuration loaded from environment / .env."""
 
@@ -948,11 +1073,12 @@ settings = Settings()
 
 
 def tpl_cli(name: str) -> str:
-    """Typer-based CLI.
+    """Typer 기반 CLI 를 생성.
 
-    Logging is configured in a typer @app.callback() so it runs before any
-    command but only when the CLI is actually invoked — keeps `import {name}`
-    side-effect-free.
+    로깅 설정은 typer 의 @app.callback() 안에 두었습니다. 이렇게 하면
+    어떤 서브커맨드를 실행하든 그보다 먼저 로깅 초기화가 일어나면서도,
+    `import {name}` 만 했을 때는 절대 실행되지 않으므로 패키지 import 의
+    무(無) 사이드 이펙트 원칙이 깨지지 않습니다.
     """
     return f'''"""Command-line interface for {name}."""
 
@@ -1016,8 +1142,12 @@ if __name__ == "__main__":
 
 
 def tpl_test_smoke(name: str) -> str:
-    """Smoke test — verifies the package can be imported and config loads.
-    Catches the most basic install/path mistakes."""
+    """스모크(smoke) 테스트 — 패키지 import 와 설정 로드가 되는지 확인.
+
+    가장 기본적인 설치/경로 오류(예: editable install 누락, src-layout
+    경로 잘못 설정) 를 가장 먼저 잡아 줍니다. 실제 비즈니스 로직 테스트는
+    별도로 추가해야 합니다.
+    """
     return f'''"""Smoke test — confirms package imports and config loads."""
 
 from {name} import __version__
@@ -1035,8 +1165,11 @@ def test_settings_loads() -> None:
 
 
 def tpl_test_cli(name: str) -> str:
-    """CLI tests via typer's CliRunner — invokes commands in-process and
-    inspects exit codes / output."""
+    """typer 의 CliRunner 를 이용한 CLI 테스트.
+
+    실제 서브프로세스를 띄우지 않고 같은 프로세스 안에서 커맨드를 호출해
+    종료 코드와 출력을 검사하므로 빠르고 결정적입니다.
+    """
     return f'''"""CLI tests using typer.testing.CliRunner."""
 
 from typer.testing import CliRunner
@@ -1058,8 +1191,12 @@ def test_info_command() -> None:
 
 
 def tpl_conftest() -> str:
-    """Shared pytest fixtures live here. tmp_data_dir is one example
-    pattern for tests that need filesystem state."""
+    """공용 pytest fixture 를 모아 두는 conftest.py 를 생성.
+
+    pytest 가 자동으로 발견하므로 별도 import 없이 모든 테스트에서
+    사용할 수 있습니다. 예시로 들어가는 tmp_data_dir 는 파일시스템
+    상태가 필요한 테스트를 위해 격리된 임시 디렉토리를 제공합니다.
+    """
     return '''"""Shared pytest fixtures (auto-discovered by pytest)."""
 
 import pytest
@@ -1075,12 +1212,20 @@ def tmp_data_dir(tmp_path):
 
 
 def tpl_module_init(name: str, module: str) -> str:
-    """One-liner __init__.py for each pipeline submodule (--modules flag)."""
+    """--modules 플래그로 지정한 각 파이프라인 서브모듈의 __init__.py 를 생성.
+
+    한 줄짜리 docstring 만 들어가는 빈 패키지로, 사용자가 여기에 실제
+    파이프라인 단계 코드를 채워 넣게 됩니다.
+    """
     return f'"""{name}.{module} — pipeline stage."""\n'
 
 
 def tpl_arch_doc(name: str) -> str:
-    """Architecture overview — replace the diagram with the real design."""
+    """아키텍처 개요 문서를 생성.
+
+    플레이스홀더 다이어그램이 들어가 있으므로, 실제 설계가 잡히면 다이어그램과
+    모듈 설명을 직접 갱신해야 합니다.
+    """
     return f"""# Architecture
 
 ## Overview
@@ -1109,8 +1254,12 @@ See `docs/adr/` for Architecture Decision Records.
 
 
 def tpl_crossplatform_doc() -> str:
-    """Cross-platform setup guide. Includes the CUDA/CPU torch pattern via
-    uv extras — keeps backend choice explicit instead of silent."""
+    """크로스 플랫폼(Mac/Windows/Linux) 셋업 가이드를 생성.
+
+    특히 PyTorch 의 CUDA / CPU 빌드 선택을 uv 의 extras 와 sources 기능으로
+    명시적으로 분리하는 패턴을 안내합니다. 묵시적 백엔드 선택으로 인한
+    "내 컴퓨터에선 되는데" 문제를 줄이는 것이 목적입니다.
+    """
     return f"""# Cross-platform notes (Mac / Windows / Linux)
 
 ## Why this matters
@@ -1230,9 +1379,163 @@ Mac is fine for development, debugging, and inference.
 """
 
 
+def tpl_uv_cheatsheet() -> str:
+    """uv 자주 쓰는 명령어 치트시트 + pip 와의 핵심 차이 정리.
+
+    생성된 프로젝트의 docs/uv-cheatsheet.md 로 들어갑니다. 새로 합류한
+    팀원이 uv 가 처음이어도 첫 한두 시간에 필요한 것은 거의 다 여기서
+    찾을 수 있도록 구성합니다.
+    """
+    return """# uv 치트시트
+
+> `uv` 는 Rust 로 작성된 차세대 Python 패키지 매니저입니다. pip + venv +
+> pip-tools + virtualenv 의 기능을 한 도구로 통합하고, 보통 10–100배 빠릅니다.
+
+## 핵심: `uv add` vs `pip install`
+
+겹치는 부분이 있지만 **핵심이 다릅니다**. `pip install` 은 *깔기만* 하고,
+`uv add` 는 *프로젝트의 의존성으로 영구 등록 + 깔기 + 락 갱신* 을 한 번에 합니다.
+
+```bash
+pip install pandas
+# → 현재 venv 에 pandas 만 설치하고 끝.
+# → pyproject.toml 은 그대로. 다른 사람이 clone 해도 pandas 는 안 깔림.
+# → 손으로 pyproject.toml 에도 추가해야 함.
+
+uv add pandas
+# → 1) pyproject.toml 의 [project.dependencies] 에 "pandas>=X.Y" 자동 추가
+# → 2) .venv 에 설치
+# → 3) uv.lock 에 정확한 버전 + 해시 + 의존 트리 기록
+# → 다른 사람이 `uv sync` 하면 동일한 버전이 그대로 재현됨.
+```
+
+즉 **`pip install` + `pyproject.toml` 수동 편집** 의 두 단계를 한 번에 묶은 것이 `uv add` 입니다.
+
+## 자주 쓰는 명령
+
+### 환경 구성
+```bash
+uv sync                       # pyproject + uv.lock 기준으로 .venv 재구성
+uv sync --all-groups          # dev / test / lint / notebook 모두 설치
+uv sync --no-dev              # 런타임 의존성만 (프로덕션 배포 시)
+uv lock                       # 락파일 재생성 (최신 호환 버전으로 재해석)
+uv lock --upgrade             # 모든 의존성을 최신 호환 버전으로 업그레이드
+uv lock --upgrade-package pandas   # 특정 패키지만 업그레이드
+```
+
+### 의존성 추가 / 제거
+```bash
+uv add pandas                          # 런타임 의존성 추가
+uv add 'pandas>=2.2,<3'                # 버전 범위 지정
+uv add --group test pytest-mock        # test 그룹에만 추가
+uv add --group lint mypy               # lint 그룹에만 추가
+uv add --dev ipdb                      # dev 그룹 (test+lint+notebook 의 합집합)
+uv remove pandas                       # 제거 (pyproject + lock 자동 정리)
+```
+
+### 실행
+```bash
+uv run python script.py                # venv 활성화 없이 한 줄 실행
+uv run pytest                          # 어떤 명령이든 `uv run <cmd>` 로 실행 가능
+uv run myproject --help                # console_scripts 진입점도 동일하게
+uv run --with httpx python -c "..."    # 일회성으로 추가 패키지 끼워 실행
+```
+
+또는 평소처럼 venv 를 활성화해도 됩니다:
+```bash
+source .venv/bin/activate              # macOS / Linux
+# .venv\\Scripts\\activate             # Windows
+pytest                                 # 이제 `uv run` 없이 직접
+deactivate                             # 끝낼 때
+```
+
+### Python 자체 관리
+```bash
+uv python install 3.12                 # Python 3.12 설치 (uv 가 직접)
+uv python list                         # 설치된 / 사용 가능한 버전 목록
+uv python pin 3.12                     # 이 프로젝트의 .python-version 갱신
+```
+
+### 캐시 / 정리
+```bash
+uv cache clean                         # 다운로드 캐시 비우기
+uv cache dir                           # 캐시 경로 확인
+```
+
+## pip 명령과의 1:1 대응표
+
+| 하려는 일 | pip + venv | uv |
+|---|---|---|
+| 가상환경 만들기 | `python -m venv .venv` | `uv venv` (보통 `uv sync` 가 자동) |
+| 의존성 설치 | `pip install -e . && pip install --group dev` | `uv sync` |
+| 패키지 추가 | `pip install X` + pyproject 수동 편집 | `uv add X` |
+| 패키지 제거 | `pip uninstall X` + pyproject 수동 편집 | `uv remove X` |
+| 명령 실행 | `source .venv/bin/activate && X` | `uv run X` |
+| 락파일 생성 | `pip-compile` (별도 도구 필요) | `uv lock` (내장) |
+| 락파일 동기화 | `pip-sync` (별도 도구 필요) | `uv sync` |
+| Python 설치 | `pyenv install 3.12` (별도 도구) | `uv python install 3.12` |
+
+## 락파일(uv.lock) 이 뭔가요?
+
+`pyproject.toml` 에는 **버전 범위** 만 적습니다 (예: `pandas>=2.2`).
+실제로 어느 시점에 누가 깔았느냐에 따라 `2.2.0` 일 수도, `2.2.3` 일 수도 있어
+"내 컴퓨터에선 되는데" 문제가 생깁니다.
+
+`uv.lock` 은 이번 해석 결과의 **정확한 버전 + 해시** 를 모두 적어 두는
+파일입니다. 다른 사람이 `uv sync` 하면 이 파일을 따라 **완전히 동일한
+버전 조합** 이 설치되어 재현성이 보장됩니다.
+
+**언제 갱신되나**:
+- `uv add` / `uv remove` → 자동
+- `uv sync` 도중 pyproject 가 lock 과 어긋나면 → 자동
+- 명시적 `uv lock` → "지금 가능한 최신 호환 버전으로 다시 풀어 줘"
+
+평소에는 직접 `uv lock` 을 칠 일이 거의 없습니다. **`uv.lock` 은 git 에
+반드시 커밋** 하세요 — 이게 빠지면 락파일의 의미가 없어집니다.
+
+## 의존성 그룹 ([dependency-groups], PEP 735)
+
+`pyproject.toml` 의 `[dependency-groups]` 에 정의된 그룹들은 **배포되는
+wheel 의 메타데이터에 포함되지 않습니다**. 즉 PyPI 에 올려도 ruff / pytest
+같은 개발 도구가 따라 올라가지 않습니다.
+
+이 프로젝트의 기본 그룹:
+- `test` — pytest, pytest-cov, pytest-randomly
+- `lint` — ruff, black, mypy
+- `notebook` — jupyter, ipykernel, nbqa, nbstripout
+- `dev` — 위 셋 + pre-commit (전부)
+
+```bash
+uv sync                       # default-groups = ["dev"] 이므로 dev 그룹 포함
+uv sync --no-dev              # 런타임만 (프로덕션 컨테이너 등)
+uv sync --group test          # test 만 추가로
+uv sync --all-groups          # 모든 그룹
+```
+
+## 흔한 트러블슈팅
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `uv: command not found` | uv 미설치 | `curl -LsSf https://astral.sh/uv/install.sh \\| sh` |
+| `ModuleNotFoundError: <name>` | editable 설치가 안 됨 | `uv sync` 한 번 더 |
+| CI 에서 동작이 로컬과 다름 | uv.lock 이 커밋 안 됨 | `git add uv.lock && git commit` |
+| 의존성을 추가했는데 다른 사람에게 안 깔림 | `pip install` 만 하고 pyproject 수정 안 함 | `uv add` 로 다시 추가 |
+| 락파일이 자꾸 변함 | 버전 범위가 너무 느슨 | 범위를 더 좁히거나 lock 만 커밋 |
+
+## 참고
+
+- 공식 문서: https://docs.astral.sh/uv/
+- PEP 735 (dependency-groups): https://peps.python.org/pep-0735/
+"""
+
+
 def tpl_adr_template() -> str:
-    """ADR (Architecture Decision Record) — Michael Nygard's format. Each
-    significant decision gets its own numbered file in docs/adr/."""
+    """ADR (Architecture Decision Record) 템플릿을 생성.
+
+    Michael Nygard 의 형식을 따릅니다. 중요한 아키텍처 결정마다 docs/adr/
+    아래에 번호가 매겨진 새 파일을 추가하고, 기존 결정이 뒤집힐 때는
+    원본을 수정하지 않고 새 ADR 이 그것을 superseded 한다고 명시합니다.
+    """
     return """# 1. Record architecture decisions
 
 Date: 2026-01-01
@@ -1254,25 +1557,33 @@ We will use Architecture Decision Records (ADRs) as described by Michael Nygard.
 
 
 # --------------------------------------------------------------------------- #
-# Filesystem helpers
+# 파일시스템 헬퍼
 # --------------------------------------------------------------------------- #
 
 def write_file(path: Path, content: str) -> None:
-    """Write text to disk, creating parent dirs as needed.
-    Always UTF-8 to avoid Windows locale surprises."""
+    """텍스트를 디스크에 기록. 필요한 상위 디렉토리는 자동 생성합니다.
+
+    인코딩은 항상 UTF-8 로 고정 — Windows 의 기본 로케일 인코딩(cp949 등) 에
+    걸려 한글이나 특수 문자가 깨지는 사고를 막기 위함입니다.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
 
 def touch_keep(path: Path) -> None:
-    """Create a `.gitkeep` so empty directories are tracked by git."""
+    """`.gitkeep` 파일을 만들어 비어 있는 디렉토리도 git 이 추적하도록 만듦.
+
+    git 은 파일이 없는 디렉토리를 추적하지 않으므로, data/raw 같이
+    "구조만 있고 처음에는 비어 있어야 하는" 폴더를 보존하려면
+    더미 파일이 하나 필요합니다.
+    """
     write_file(path / ".gitkeep", "")
 
 
 # --------------------------------------------------------------------------- #
-# Project creation
-#   The orchestrator: writes every templated file, optionally inits git,
-#   optionally creates a virtualenv (uv or plain python -m venv).
+# 프로젝트 생성
+#   오케스트레이터 역할: 모든 템플릿 파일을 디스크에 쓰고, 선택적으로 git 을
+#   초기화하며, 선택적으로 가상환경 (uv 또는 일반 python -m venv) 을 만듭니다.
 # --------------------------------------------------------------------------- #
 
 def create_project(
@@ -1282,22 +1593,31 @@ def create_project(
     do_venv: bool,
     license_type: str,
     use_uv: bool,
+    github: str,
 ) -> None:
-    """Build the project tree and run optional automation.
+    """프로젝트 트리를 생성하고 선택적 자동화 단계를 실행.
 
-    Order matters:
-      1. write all files
-      2. (uv mode) `uv lock` to generate uv.lock BEFORE first commit
-      3. git init + commit (so uv.lock is in the initial commit)
-      4. (uv mode) `uv sync` to create .venv + install + run pre-commit install
-         (pip mode) `python -m venv` only — user installs manually
+    실행 순서가 중요합니다:
+      1. 모든 파일을 디스크에 기록
+      2. (uv 모드) 첫 커밋 *전에* `uv lock` 으로 uv.lock 을 생성
+      3. git init + 첫 커밋 (uv.lock 도 초기 커밋에 포함되도록)
+      4. (github != "none") `gh repo create` 로 GitHub 원격 저장소 생성 +
+         첫 커밋 푸시. gh CLI 가 없거나 로그인 안 되어 있으면 안내만 출력.
+      5. (uv 모드) `uv sync` 로 .venv 생성 + 의존성 설치 + pre-commit 훅 설치
+         (pip 모드) `python -m venv` 만 수행 — 이후 설치는 사용자가 직접
+
+    Args:
+        github: "none" | "private" | "public" — GitHub 원격 저장소 생성 모드.
+            "none" 이면 로컬에만 git 초기화. 그 외에는 해당 가시성으로
+            `gh repo create` 호출.
     """
     root = Path(name)
     if root.exists():
         print(f"\n[ERROR] '{name}' already exists. Refusing to overwrite.\n")
         sys.exit(1)
 
-    # Fail fast if uv is required but missing — nothing has been written yet.
+    # uv 모드가 필요한데 uv 가 설치되어 있지 않으면 *파일을 쓰기 전에* 즉시
+    # 실패시킵니다. 이렇게 해야 반쪽짜리 결과물이 남지 않습니다.
     if do_venv and use_uv and not have_uv():
         print("\n[ERROR] uv is not installed (default install mode).")
         print("  Install: curl -LsSf https://astral.sh/uv/install.sh | sh")
@@ -1310,7 +1630,7 @@ def create_project(
     author_name, author_email = detect_git_user()
     year = current_year()
 
-    # ---- core files ------------------------------------------------------
+    # ---- 핵심 파일 -------------------------------------------------------
     write_file(root / "pyproject.toml", tpl_pyproject(name, author_name, author_email))
     write_file(root / ".gitignore", tpl_gitignore())
     write_file(root / ".gitattributes", tpl_gitattributes())
@@ -1324,7 +1644,7 @@ def create_project(
     if license_type.upper() == "MIT":
         write_file(root / "LICENSE", tpl_license_mit(author_name, year))
 
-    # ---- GitHub automation ----------------------------------------------
+    # ---- GitHub 자동화 (CI, 템플릿, dependabot 등) -----------------------
     write_file(root / ".github" / "PULL_REQUEST_TEMPLATE.md", tpl_pr_template())
     write_file(root / ".github" / "ISSUE_TEMPLATE" / "bug_report.md", tpl_issue_bug())
     write_file(root / ".github" / "ISSUE_TEMPLATE" / "feature_request.md", tpl_issue_feature())
@@ -1332,7 +1652,7 @@ def create_project(
     write_file(root / ".github" / "dependabot.yml", tpl_dependabot())
     write_file(root / ".github" / "workflows" / "ci.yml", tpl_ci_workflow(use_uv))
 
-    # ---- src layout (the package itself) --------------------------------
+    # ---- src 레이아웃 (실제 패키지 본체) --------------------------------
     pkg = root / "src" / name
     write_file(pkg / "__init__.py", tpl_init(name))
     write_file(pkg / "__main__.py", tpl_main(name))
@@ -1342,27 +1662,31 @@ def create_project(
     for module in modules:
         write_file(pkg / module / "__init__.py", tpl_module_init(name, module))
 
-    # ---- tests -----------------------------------------------------------
+    # ---- 테스트 ----------------------------------------------------------
     write_file(root / "tests" / "__init__.py", "")
     write_file(root / "tests" / "conftest.py", tpl_conftest())
     write_file(root / "tests" / "test_smoke.py", tpl_test_smoke(name))
     write_file(root / "tests" / "test_cli.py", tpl_test_cli(name))
 
-    # ---- docs ------------------------------------------------------------
+    # ---- 문서 ------------------------------------------------------------
     write_file(root / "docs" / "architecture.md", tpl_arch_doc(name))
     write_file(root / "docs" / "cross-platform.md", tpl_crossplatform_doc())
+    write_file(root / "docs" / "uv-cheatsheet.md", tpl_uv_cheatsheet())
     write_file(root / "docs" / "adr" / "0001-record-architecture-decisions.md", tpl_adr_template())
 
-    # ---- data / models / notebooks placeholders -------------------------
+    # ---- data / models / notebooks / skills 자리잡이 폴더 ---------------
     for sub in ("raw", "processed", "external"):
         touch_keep(root / "data" / sub)
     touch_keep(root / "models")
     touch_keep(root / "notebooks")
     touch_keep(root / "logs")
+    # Claude Code skill 파일 (.md) 을 모아 두는 곳. 빈 폴더로 시작해도
+    # 클로드가 이 폴더를 인식해서 스킬을 추가/사용할 수 있습니다.
+    touch_keep(root / "skills")
 
     print("[setup] Files written.")
 
-    # ---- uv lock (before git, so uv.lock is in initial commit) ----------
+    # ---- uv lock (git 보다 먼저 실행해야 uv.lock 이 첫 커밋에 포함됨) ----
     if do_venv and use_uv:
         try:
             subprocess.run(["uv", "lock"], cwd=root, check=True, capture_output=True)
@@ -1370,7 +1694,8 @@ def create_project(
         except subprocess.CalledProcessError as e:
             print(f"[setup] uv lock failed: {e.stderr.decode() if e.stderr else e}")
 
-    # ---- git init + first commit ----------------------------------------
+    # ---- git 초기화 + 첫 커밋 -------------------------------------------
+    git_ok = False
     if do_git:
         try:
             subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
@@ -1380,18 +1705,53 @@ def create_project(
                 cwd=root, check=True, capture_output=True,
             )
             print("[setup] Git initialized + first commit.")
+            git_ok = True
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"[setup] Git init skipped: {e}")
+
+    # ---- GitHub 원격 저장소 생성 + 푸시 ---------------------------------
+    # 보안상 기본값은 "none" — 명시적으로 --github private|public 을 줘야
+    # 외부에 코드가 올라갑니다. gh CLI 가 없거나 로그인이 안 돼 있으면
+    # 친절한 안내만 출력하고 스크립트는 계속 진행합니다(치명적 오류 아님).
+    if github != "none":
+        if not git_ok:
+            print("[setup] --github 옵션은 git init 이 성공해야 동작합니다. 건너뜀.")
+        elif not have_gh():
+            print("[setup] gh CLI 가 설치되어 있지 않아 GitHub 저장소 생성을 건너뜁니다.")
+            print("        설치: https://cli.github.com/  (Mac: `brew install gh`)")
+        elif not gh_is_authenticated():
+            print("[setup] gh 가 로그인되어 있지 않아 GitHub 저장소 생성을 건너뜁니다.")
+            print("        먼저 한 번 실행: `gh auth login`")
+        else:
+            visibility_flag = f"--{github}"  # --private 또는 --public
+            try:
+                # --source=. : 현재 폴더가 로컬 git 저장소
+                # --remote=origin : remote 이름 origin 으로 등록
+                # --push : 첫 커밋을 즉시 푸시
+                subprocess.run(
+                    ["gh", "repo", "create", name, visibility_flag,
+                     "--source=.", "--remote=origin", "--push"],
+                    cwd=root, check=True,
+                )
+                print(f"[setup] GitHub 저장소 생성 + 푸시 완료 ({github}).")
+            except subprocess.CalledProcessError as e:
+                # 흔한 실패 원인: 같은 이름 레포가 이미 존재, 권한 부족 등.
+                print(f"[setup] gh repo create 실패: {e}")
+                print("        로컬 저장소는 그대로 유지됩니다. 수동으로:")
+                print(f"        gh repo create {name} {visibility_flag} --source=. --push")
 
     # ---- venv / uv sync --------------------------------------------------
     if do_venv:
         if use_uv:
             try:
-                # `uv sync` reads default-groups from [tool.uv], so dev group is
-                # installed automatically. Stream output so user sees progress.
+                # `uv sync` 는 [tool.uv] 의 default-groups 설정을 읽어 자동으로
+                # dev 그룹까지 설치합니다. capture_output 을 쓰지 않고 그대로
+                # 흘려 보내, 사용자가 설치 진행 상황을 실시간으로 볼 수 있게 함.
                 subprocess.run(["uv", "sync"], cwd=root, check=True)
                 print("[setup] uv sync completed (.venv created + dev deps installed).")
-                # Install pre-commit hook into .git/hooks/.
+                # pre-commit 훅을 .git/hooks/ 에 설치. 실패해도 치명적이지
+                # 않으므로 check=False (예: git 초기화를 건너뛴 경우 등에서
+                # 자연스럽게 무시되도록).
                 subprocess.run(
                     ["uv", "run", "pre-commit", "install"],
                     cwd=root, check=False, capture_output=True,
@@ -1409,17 +1769,17 @@ def create_project(
             except subprocess.CalledProcessError as e:
                 print(f"[setup] venv creation failed: {e}")
 
-    # ---- summary --------------------------------------------------------
+    # ---- 마무리 요약 -----------------------------------------------------
     print(f"\n[done] '{name}' created.")
     print("\nNext steps:")
     print(f"  cd {name}")
     if do_venv and use_uv:
-        # uv mode: everything is already installed. Just run something.
+        # uv 모드: 모든 의존성이 이미 설치되어 있으므로 바로 실행만 하면 됨.
         print(f"  uv run {name} --help          # try the CLI")
         print("  uv run pytest                 # run tests")
         print("  uv run jupyter lab            # open notebooks")
     elif do_venv and not use_uv:
-        # pip mode: user must activate + install manually.
+        # pip 모드: venv 활성화 + 패키지 설치를 사용자가 직접 해야 함.
         print("  source .venv/bin/activate     # macOS/Linux")
         print("  # .venv\\Scripts\\activate    # Windows PowerShell")
         print("  python -m pip install --upgrade pip")
@@ -1428,22 +1788,132 @@ def create_project(
         print("  pre-commit install")
         print(f"  {name} --help                 # try the CLI")
     else:
-        # No venv: fully manual setup.
+        # venv 자체를 건너뛴 경우: 환경 구성부터 끝까지 모두 수동.
         print("  # set up your environment, then:")
         print("  pip install -e . && pip install --group dev")
         print(f"  {name} --help")
 
 
 # --------------------------------------------------------------------------- #
-# CLI
+# 프로젝트 삭제
+#   -D / --delete 플래그가 주어졌을 때 호출됩니다. 실수로 잘못된 폴더를 날리지
+#   않도록 여러 단계의 안전장치를 거칩니다:
+#     1. 폴더가 실제로 존재해야 함
+#     2. 폴더 안에 pyproject.toml 이 있어야 함 (= 스캐폴드로 만든 폴더로 보임)
+#     3. 현재 작업 디렉토리가 삭제 대상 안에 있으면 거부 (rm-rf cwd 사고 방지)
+#     4. --yes 가 없으면 사용자가 폴더 이름을 다시 타이핑해야 진행
+# --------------------------------------------------------------------------- #
+
+def delete_project(name: str, delete_remote: bool, skip_confirm: bool) -> None:
+    """로컬 프로젝트 폴더 (및 선택적으로 동명의 GitHub 레포) 를 삭제.
+
+    Args:
+        name: 삭제할 폴더 이름. 현재 작업 디렉토리 기준 상대 경로로 해석.
+        delete_remote: True 면 `gh repo delete <name>` 도 함께 호출.
+        skip_confirm: True 면 확인 프롬프트 생략 (자동화/스크립트 용).
+    """
+    root = Path(name).resolve()
+
+    # 안전장치 1 — 폴더가 실제로 존재
+    if not root.exists():
+        print(f"\n[ERROR] '{root}' 가 존재하지 않습니다.\n")
+        sys.exit(1)
+
+    # 안전장치 2 — 스캐폴드로 만든 폴더로 보여야 함 (pyproject.toml 존재)
+    # 이게 가장 중요한 가드: ~/ 같은 일반 디렉토리를 실수로 지정해도 안 지워짐.
+    if not (root / "pyproject.toml").exists():
+        print(f"\n[ERROR] '{root}' 안에 pyproject.toml 이 없습니다. 삭제를 거부합니다.")
+        print("        (잘못된 폴더를 실수로 날리는 사고를 막기 위한 안전장치)\n")
+        sys.exit(1)
+
+    # 안전장치 3 — 현재 작업 디렉토리가 삭제 대상 안이면 거부
+    try:
+        cwd = Path.cwd().resolve()
+        if cwd == root or root in cwd.parents:
+            print(f"\n[ERROR] 현재 작업 디렉토리({cwd}) 가 삭제 대상 안에 있습니다.")
+            print("        다른 폴더로 이동한 뒤 다시 실행하세요.\n")
+            sys.exit(1)
+    except OSError:
+        # cwd 가 이미 삭제된 등 비정상 상태 — 안전하게 계속 진행.
+        pass
+
+    # 사용자에게 무엇이 일어날지 명확히 보여 줌
+    print(f"\n[delete] 삭제 예정 경로: {root}")
+    if delete_remote:
+        print(f"[delete] GitHub 레포 '{name}' 도 함께 삭제됩니다 (gh repo delete).")
+    print()
+
+    # 안전장치 4 — 폴더 이름을 다시 타이핑해야 진행 (오타 한 글자도 거부)
+    if not skip_confirm:
+        try:
+            typed = input(
+                f"정말 삭제하려면 폴더 이름을 그대로 다시 입력하세요 [{name}]: "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[delete] 취소되었습니다.")
+            sys.exit(1)
+        if typed != name:
+            print("[delete] 이름이 일치하지 않아 취소되었습니다.")
+            sys.exit(1)
+
+    # ---- 로컬 폴더 삭제 -------------------------------------------------
+    try:
+        shutil.rmtree(root)
+        print(f"[delete] 로컬 폴더 삭제 완료: {root}")
+    except OSError as e:
+        print(f"[ERROR] 폴더 삭제 실패: {e}")
+        sys.exit(1)
+
+    # ---- GitHub 레포 삭제 (선택) ----------------------------------------
+    if not delete_remote:
+        print("\n[done] 로컬 삭제 완료. (GitHub 레포는 그대로)")
+        return
+
+    if not have_gh():
+        print("[delete] gh CLI 가 설치되어 있지 않아 GitHub 레포 삭제를 건너뜁니다.")
+        print("        설치: https://cli.github.com/  (Mac: `brew install gh`)")
+        print(f"        또는 웹에서 직접 삭제: github.com/<USER>/{name}/settings")
+        return
+
+    if not gh_is_authenticated():
+        print("[delete] gh 로그인되지 않아 GitHub 레포 삭제를 건너뜁니다.")
+        print("        먼저 한 번 실행: `gh auth login`")
+        return
+
+    try:
+        # gh repo delete 는 기본적으로 현재 로그인 사용자의 레포를 대상으로 함.
+        # --yes 는 gh 자체의 추가 확인 프롬프트를 건너뛰는 옵션 (우리 쪽
+        # 안전장치 4 를 이미 통과했으므로 중복 확인 불필요).
+        subprocess.run(
+            ["gh", "repo", "delete", name, "--yes"],
+            check=True, capture_output=True, text=True,
+        )
+        print(f"[delete] GitHub 레포 삭제 완료: {name}")
+        print("\n[done] 로컬 + 원격 삭제 완료.")
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "") if isinstance(e.stderr, str) else ""
+        # 가장 흔한 실패: delete_repo 권한 스코프 누락.
+        if "delete_repo" in stderr or "scope" in stderr.lower():
+            print("[ERROR] gh 에 delete_repo 권한이 없습니다. 한 번 갱신하면 됩니다:")
+            print("        gh auth refresh -h github.com -s delete_repo")
+        else:
+            print(f"[ERROR] GitHub 레포 삭제 실패: {stderr or e}")
+        print("        로컬 폴더는 이미 삭제되었습니다.")
+
+
+# --------------------------------------------------------------------------- #
+# CLI 진입점
 # --------------------------------------------------------------------------- #
 
 def parse_args() -> argparse.Namespace:
-    """Argument parser. Defaults are tuned for a happy path:
-    - uv mode (modern, fast, lockfile-backed)
-    - git init enabled
-    - venv/uv-sync enabled
-    - MIT license
+    """커맨드라인 인자 파서.
+
+    기본값들은 "행복한 경로(happy path)" 에 맞춰 두었습니다:
+      - uv 모드 (현대적이고 빠르며 락파일 기반으로 재현 가능)
+      - git 초기화 켜짐
+      - venv / uv sync 켜짐
+      - MIT 라이선스
+    각 플래그는 이 기본값을 *끄는* 용도로 동작합니다.
     """
     p = argparse.ArgumentParser(
         description="Universal Python project scaffolder (uv-first)",
@@ -1471,23 +1941,64 @@ def parse_args() -> argparse.Namespace:
         choices=["MIT", "NONE"],
         help="License file to generate (default: MIT)",
     )
+    p.add_argument(
+        "--github",
+        default="none",
+        choices=["none", "private", "public"],
+        help=(
+            "GitHub 원격 저장소 자동 생성 + 푸시. 기본값 'none' (생성 안 함). "
+            "'private' 또는 'public' 을 지정하면 gh CLI 로 해당 가시성의 "
+            "원격 저장소를 만들고 첫 커밋을 푸시합니다. gh 설치/로그인 필요."
+        ),
+    )
+    # ── 삭제 모드 플래그 ────────────────────────────────────────────────
+    # -D 는 destructive 동작이므로 의도적으로 짧고 명시적인 키로만 노출.
+    p.add_argument(
+        "-D", "--delete",
+        action="store_true",
+        help=(
+            "[삭제 모드] name 으로 지정한 로컬 폴더를 삭제합니다. "
+            "기본은 로컬만 삭제하며 --remote 가 있으면 GitHub 레포도 함께 삭제. "
+            "--yes 가 없으면 폴더 이름을 다시 입력해야 진행됩니다."
+        ),
+    )
+    p.add_argument(
+        "--remote",
+        action="store_true",
+        help="삭제 모드에서 GitHub 레포도 함께 삭제 (gh 설치/로그인 필요).",
+    )
+    p.add_argument(
+        "--yes",
+        action="store_true",
+        help="삭제 모드에서 확인 프롬프트를 건너뜀 (자동화 용도).",
+    )
     return p.parse_args()
 
 
 def main() -> None:
-    """Validate args and dispatch to create_project()."""
+    """인자를 검증하고 create_project() 로 위임.
+
+    인자가 비어 있으면 표준 입력으로 직접 묻습니다(스크립트를 인자 없이
+    더블클릭/실행해도 동작하도록).
+    """
     args = parse_args()
     name = args.name or input("Project name: ").strip()
     if not name:
         print("[ERROR] No project name provided.")
         sys.exit(1)
-    # Project names must be safe as Python identifiers AND filesystem names.
+    # 프로젝트 이름은 Python 식별자로도, 파일시스템 이름으로도 모두 안전해야
+    # 합니다. 첫 글자는 알파벳, 나머지는 알파벳/숫자/언더스코어/하이픈만 허용.
     if not name.replace("_", "").replace("-", "").isalnum() or not name[0].isalpha():
         print(
             "[ERROR] Project name must start with a letter and contain only "
             "letters, digits, '_', or '-'."
         )
         sys.exit(1)
+
+    # 삭제 모드면 분기 — 생성 관련 인자들은 모두 무시.
+    if args.delete:
+        delete_project(name, delete_remote=args.remote, skip_confirm=args.yes)
+        return
 
     modules = [m.strip() for m in args.modules.split(",") if m.strip()]
 
@@ -1498,6 +2009,7 @@ def main() -> None:
         do_venv=not args.no_venv,
         license_type=args.license,
         use_uv=not args.no_uv,
+        github=args.github,
     )
 
 
