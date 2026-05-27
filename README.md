@@ -6,11 +6,12 @@
 ## 빠른 시작
 
 ```bash
-# 기본값 — uv 모드. 폴더 생성, git 초기화, `uv sync` 실행까지 수행합니다.
+# 기본값 — uv 모드 + script 프로필. 폴더 생성, git 초기화, `uv sync` 까지 수행.
 python setup_project.py myproject
 
-# ML 파이프라인 서브모듈 포함
-python setup_project.py collision_detection --modules detection,tracking,risk,ui
+# 프로필 지정 (아래 "프로필 선택 기준" 참고)
+python setup_project.py my_notes --profile docs
+python setup_project.py my_pipeline --profile research --modules detection,tracking,risk,ui
 
 # 일반 venv + pip 사용 (uv 미사용)
 python setup_project.py myproject --no-uv
@@ -18,6 +19,31 @@ python setup_project.py myproject --no-uv
 # 파일만 생성 (설치 없음, git 없음)
 python setup_project.py myproject --no-git --no-venv
 ```
+
+## 프로필 선택 기준
+
+> **노트북을 매일 열 거면 `research`, 코드 파일만 만질 거면 `script`, 마크다운 정리용이면 `docs`.**
+
+| 프로필 | 무엇이 들어있나 | 약 패키지 수 | 어울리는 케이스 |
+|---|---|---|---|
+| `docs` | ruff 만 | ~10 | 마크다운/지식 정리 레포 (예: 학습 노트, 스킬 모음집) |
+| `script` (기본값) | test + lint (ruff/black/mypy/pytest) | ~30 | 일반 Python 코드 — CLI 도구, 자동화 스크립트, 라이브러리, 봇, 웹 서버 |
+| `research` | 위 + notebook (ipykernel/nbqa/nbstripout) + pre-commit | ~80 | 데이터 분석, ML 실험, Jupyter 기반 작업 |
+
+### 3단계 결정 플로우
+
+```
+1. Python 프로젝트인가?           → 아니면 이 스캐폴더 안 씀 (Next/Vite/Unity 등)
+2. 노트북(.ipynb)을 주로 쓸 건가?  → 그렇다 → research
+3. 유지보수할 코드인가?            → 그렇다 → script   /   아니다(메모) → docs
+```
+
+도메인 예시:
+- **데이터 분석 / ML 실험** → `research`
+- **FastAPI 서버 / 텔레그램 봇 / CLI 도구 / pygame 게임** → `script`
+- **학습 노트 / 스킬 모음 / 회의록 정리** → `docs`
+- **프론트엔드 포트폴리오 (React/Next)** → 이 스캐폴더 부적합, JS 생태계 도구 사용
+- **에어비엔비 관리 같은 막연한 케이스** → 가장 큰 활동(웹 서버면 script, 데이터 분석이면 research) 기준으로
 
 > 스크립트 자체는 표준 라이브러리만 사용하므로 **venv 활성화 없이도 실행할 수 있습니다**.
 > `uv`가 설치되어 있으면 생성된 프로젝트에 대해 자동으로 `uv lock` + `uv sync`를 호출합니다.
@@ -78,11 +104,16 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 | 플래그 | 기본값 | 의미 |
 |---|---|---|
 | `name` (위치 인자) | 필수 | 프로젝트 폴더 이름. `[a-zA-Z][a-zA-Z0-9_-]*` 패턴을 따라야 합니다. |
+| `--profile docs\|script\|research` | `script` | 개발 도구 프로필 (위 "프로필 선택 기준" 참고). |
 | `--modules a,b,c` | `""` | `src/<name>/` 아래에 만들 서브모듈을 쉼표로 구분하여 지정. |
 | `--no-uv` | uv 모드 | uv 대신 일반 `python -m venv` + pip 사용. |
 | `--no-venv` | venv 켜짐 | `.venv` / `uv sync` 생성을 건너뜀. |
 | `--no-git` | git 켜짐 | `git init` + 첫 커밋을 건너뜀. |
 | `--license MIT\|NONE` | `MIT` | 생성할 라이선스 파일. |
+| `--github none\|private\|public` | `none` | GitHub 원격 저장소 자동 생성 (gh CLI 필요). |
+| `-D` / `--delete` | off | 삭제 모드 (폴더 이름 재입력 필요). |
+| `--remote` | off | 삭제 모드에서 GitHub 레포도 함께 삭제. |
+| `--yes` | off | 삭제 모드에서 확인 프롬프트 생략. |
 
 `python setup_project.py --help`를 실행하면 직접 확인할 수 있습니다.
 

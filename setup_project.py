@@ -69,6 +69,13 @@
     # 라이선스 파일 없이.
     python setup_project.py myproject --license NONE
 
+    # 프로필 선택 (기본값: script)
+    # 선택 기준: 노트북을 매일 열 거면 research, 코드 파일만 만질 거면 script,
+    #            마크다운 정리용이면 docs.
+    python setup_project.py myproject --profile docs       # 최소 (~10 패키지)
+    python setup_project.py myproject --profile script     # 기본 (~30 패키지)
+    python setup_project.py myproject --profile research   # 풀세트 (~80 패키지)
+
     # GitHub 원격 저장소까지 자동 생성 + 푸시 (gh CLI 필요, 로그인 상태여야 함).
     python setup_project.py myproject --github private    # 비공개
     python setup_project.py myproject --github public     # 공개
@@ -88,6 +95,10 @@
     --no-venv         venv / uv-sync 생성을 완전히 건너뜀.
     --no-git          `git init` + 첫 커밋을 건너뜀.
     --license MIT|NONE  생성할 라이선스 파일 (기본값: MIT).
+    --profile docs|script|research
+                      개발 도구 프로필 (기본값: script).
+                      docs=마크다운 정리용 최소 / script=일반 코드 /
+                      research=노트북·ML 풀세트.
     --github none|private|public
                       GitHub 원격 저장소 자동 생성 (기본값: none).
                       gh CLI 가 설치되고 `gh auth login` 이 끝나 있어야 함.
@@ -233,8 +244,82 @@ def gh_is_authenticated() -> bool:
 #   두 번 써야 한다는 트레이드오프가 있습니다.
 # --------------------------------------------------------------------------- #
 
-def tpl_pyproject(name: str, author_name: str, author_email: str) -> str:
+def _dependency_groups_block(profile: str) -> str:
+    """프로필별 [dependency-groups] 섹션 (PEP 735) 을 TOML 문자열로 반환.
+
+    docs   : 가장 가벼움. 마크다운/지식 정리용. lint 도구 1개만.
+    script : 일반 Python 코드. test + lint. 노트북/pre-commit 없음.
+    research: 데이터 분석/ML. 모든 그룹 + pre-commit 포함 (가장 무거움).
+
+    이 함수는 단일 출처(single source of truth) — 프로필별 차이는 모두
+    여기서 결정됩니다.
+    """
+    if profile == "docs":
+        return '''[dependency-groups]
+# docs 프로필 — 마크다운 정리용 최소 구성. 가끔 .py 파일을 만질 가능성에
+# 대비해 ruff 만 깔아 둡니다. 테스트/노트북/pre-commit 없음 (~10개 패키지).
+dev = [
+    "ruff>=0.8",
+]
+'''
+    if profile == "script":
+        return '''[dependency-groups]
+# script 프로필 — 일반 Python 코드. 테스트와 린트는 갖추되 노트북/pre-commit
+# 은 필요해지면 그때 `uv add --group notebook ...` 으로 추가 (~30개 패키지).
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-randomly>=3.15",         # 테스트 순서 랜덤화 — 숨은 결합 노출
+]
+lint = [
+    "ruff>=0.8",                     # 고속 린터 + 포매터 (Astral)
+    "black>=24.10",                  # 표준 포매터
+    "mypy>=1.13",                    # 정적 타입 체커
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "lint"},
+]
+'''
+    # research (가장 풍부한 구성 — 현재 기본이었던 것)
+    return '''[dependency-groups]
+# research 프로필 — 데이터 분석 / ML / 노트북 기반 작업용 풀세트
+# (~80개 패키지). 가장 무겁지만 기여자 1명만 추가돼도 환경 일치가 큰 이득.
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-randomly>=3.15",         # 테스트 순서 랜덤화 — 숨은 결합 노출
+]
+lint = [
+    "ruff>=0.8",                     # 고속 린터 + 포매터 (Astral)
+    "black>=24.10",                  # 표준 포매터
+    "mypy>=1.13",                    # 정적 타입 체커
+]
+notebook = [
+    # VS Code / PyCharm 에서 .ipynb 를 쓰는 것을 가정한 슬림 구성.
+    # 브라우저 기반 Jupyter Lab UI 가 필요하면 `uv add --group notebook jupyter` 추가.
+    "ipykernel>=6.29",               # 셀 실행 커널
+    "nbqa>=1.8",                     # .ipynb 에 ruff/black 적용
+    "nbstripout>=0.7",               # 커밋 전 셀 출력 자동 제거
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "notebook"},
+    "pre-commit>=3.7",
+]
+'''
+
+
+def tpl_pyproject(
+    name: str, author_name: str, author_email: str, profile: str = "script"
+) -> str:
     """pyproject.toml 의 내용을 생성합니다.
+
+    Args:
+        profile: docs | script | research. 프로필별로 [dependency-groups]
+            섹션의 구성이 달라집니다. 런타임 의존성과 그 외 메타데이터는
+            동일.
 
     주요 설계 결정:
       - 개발 도구는 [dependency-groups] (PEP 735) 에 둠 — 이렇게 하면
@@ -248,6 +333,7 @@ def tpl_pyproject(name: str, author_name: str, author_email: str) -> str:
         최신 릴리스를 해석하도록 하고, 정확한 버전 고정은 uv.lock 에 맡김.
     """
     py_target = PYTHON_VERSION.replace(".", "")
+    dependency_groups = _dependency_groups_block(profile)
     return f"""[build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -311,34 +397,10 @@ dependencies = [
 
 # ────────────────────────────────────────────────────────────────────────
 # Dependency groups (PEP 735 — supported by uv / pdm / hatch / pip 25.1+).
-# These NEVER end up in the published wheel. `include-group` enables
-# composition (dev = test + lint + notebook + extras).
+# These NEVER end up in the published wheel. 프로필별 구성은 스캐폴더가
+# 결정하므로 (docs / script / research) 아래 블록은 자동 생성됩니다.
 # ────────────────────────────────────────────────────────────────────────
-[dependency-groups]
-test = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "pytest-randomly>=3.15",         # randomize test order to surface hidden coupling
-]
-lint = [
-    "ruff>=0.8",                     # fast linter + formatter (Astral)
-    "black>=24.10",                  # canonical formatter
-    "mypy>=1.13",                    # static type checker
-]
-notebook = [
-    # VS Code / PyCharm 에서 .ipynb 를 쓰는 것을 가정한 슬림 구성.
-    # 브라우저 기반 Jupyter Lab UI 가 필요하면 `uv add --group notebook jupyter` 추가.
-    "ipykernel>=6.29",               # 셀 실행 커널 (에디터/IDE 가 가져다 씀)
-    "nbqa>=1.8",                     # .ipynb 에 ruff/black 적용
-    "nbstripout>=0.7",               # 커밋 전 셀 출력 자동 제거
-]
-dev = [
-    {{include-group = "test"}},
-    {{include-group = "lint"}},
-    {{include-group = "notebook"}},
-    "pre-commit>=3.7",
-]
-
+{dependency_groups}
 # uv-specific config: `uv sync` (no flags) installs the dev group by default,
 # so first-time contributors only need one command.
 [tool.uv]
@@ -1595,8 +1657,16 @@ def create_project(
     license_type: str,
     use_uv: bool,
     github: str,
+    profile: str,
 ) -> None:
     """프로젝트 트리를 생성하고 선택적 자동화 단계를 실행.
+
+    profile (docs | script | research) 는 다음을 결정합니다:
+      - pyproject.toml 의 [dependency-groups] 구성
+      - pre-commit 훅 자동 설치 여부 (research 만 설치)
+      - (현재 단계에서는) 그 외 모든 파일은 동일하게 생성
+    프로필별 차이를 늘리고 싶으면 _dependency_groups_block 과 이 함수
+    안의 분기 두 곳만 손대면 됩니다.
 
     실행 순서가 중요합니다:
       1. 모든 파일을 디스크에 기록
@@ -1632,7 +1702,7 @@ def create_project(
     year = current_year()
 
     # ---- 핵심 파일 -------------------------------------------------------
-    write_file(root / "pyproject.toml", tpl_pyproject(name, author_name, author_email))
+    write_file(root / "pyproject.toml", tpl_pyproject(name, author_name, author_email, profile))
     write_file(root / ".gitignore", tpl_gitignore())
     write_file(root / ".gitattributes", tpl_gitattributes())
     write_file(root / ".editorconfig", tpl_editorconfig())
@@ -1750,14 +1820,14 @@ def create_project(
                 # 흘려 보내, 사용자가 설치 진행 상황을 실시간으로 볼 수 있게 함.
                 subprocess.run(["uv", "sync"], cwd=root, check=True)
                 print("[setup] uv sync completed (.venv created + dev deps installed).")
-                # pre-commit 훅을 .git/hooks/ 에 설치. 실패해도 치명적이지
-                # 않으므로 check=False (예: git 초기화를 건너뛴 경우 등에서
-                # 자연스럽게 무시되도록).
-                subprocess.run(
-                    ["uv", "run", "pre-commit", "install"],
-                    cwd=root, check=False, capture_output=True,
-                )
-                print("[setup] pre-commit hook installed.")
+                # pre-commit 훅은 research 프로필에서만 의존성으로 들어가므로
+                # 그 외 프로필에선 설치 단계를 건너뜁니다 (실행해도 실패만 함).
+                if profile == "research":
+                    subprocess.run(
+                        ["uv", "run", "pre-commit", "install"],
+                        cwd=root, check=False, capture_output=True,
+                    )
+                    print("[setup] pre-commit hook installed.")
             except subprocess.CalledProcessError as e:
                 print(f"[setup] uv sync failed: {e}")
         else:
@@ -1920,6 +1990,7 @@ _newpy() {
     '--no-git[git init 건너뜀]' \
     '--no-venv[venv 생성 건너뜀]' \
     '--license[라이선스]:license:(MIT NONE)' \
+    '--profile[프로필]:profile:(docs script research)' \
     '--github[GitHub 레포]:visibility:(none private public)' \
     '-D[삭제 모드]' \
     '--delete[삭제 모드]' \
@@ -1989,6 +2060,19 @@ def parse_args() -> argparse.Namespace:
         default="MIT",
         choices=["MIT", "NONE"],
         help="License file to generate (default: MIT)",
+    )
+    p.add_argument(
+        "--profile",
+        default="script",
+        choices=["docs", "script", "research"],
+        help=(
+            "프로젝트 프로필 (기본값: script). "
+            "docs=마크다운 정리용 최소 구성 / "
+            "script=일반 코드 (test+lint) / "
+            "research=데이터·ML (test+lint+notebook+pre-commit). "
+            "선택 기준: 노트북을 매일 열 거면 research, "
+            "코드 파일만 만질 거면 script, 마크다운 정리용이면 docs."
+        ),
     )
     p.add_argument(
         "--github",
@@ -2078,6 +2162,7 @@ def main() -> None:
         license_type=args.license,
         use_uv=not args.no_uv,
         github=args.github,
+        profile=args.profile,
     )
 
 
