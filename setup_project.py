@@ -1022,10 +1022,10 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["{PYTHON_VERSION}", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -1037,7 +1037,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Cache pre-commit
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{{{ runner.os }}}}-${{{{ hashFiles('.pre-commit-config.yaml') }}}}
@@ -1063,7 +1063,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["{PYTHON_VERSION}", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -1078,7 +1078,7 @@ jobs:
           pip install --group dev
 
       - name: Cache pre-commit
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{{{ runner.os }}}}-${{{{ hashFiles('.pre-commit-config.yaml') }}}}
