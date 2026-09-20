@@ -164,7 +164,11 @@ DEFAULT_AUTHOR_EMAIL = "leo4study@gmail.com"
 # --------------------------------------------------------------------------- #
 
 def detect_git_user() -> tuple[str, str]:
-    """`git config --global` (없으면 로컬) 에서 user.name / user.email 을 읽습니다.
+    """`git config --get` 으로 user.name / user.email 을 읽습니다.
+
+    `--global` 을 붙이지 않으므로 git 이 병합한 값(로컬 > 글로벌 우선순위)이
+    나옵니다. 즉 이 스크립트를 *어떤 저장소 안에서* 실행하느냐에 따라 그
+    저장소의 로컬 설정이 생성물(LICENSE / pyproject authors) 에 박힐 수 있습니다.
 
     git 자체가 설치되어 있지 않거나 설정값이 비어 있으면 placeholder 문자열
     (DEFAULT_AUTHOR_NAME / DEFAULT_AUTHOR_EMAIL) 로 폴백하므로, git 이 없는
@@ -1681,12 +1685,16 @@ def create_project(
 ) -> None:
     """프로젝트 트리를 생성하고 선택적 자동화 단계를 실행.
 
-    profile (docs | script | research) 는 다음을 결정합니다:
-      - pyproject.toml 의 [dependency-groups] 구성
-      - pre-commit 훅 자동 설치 여부 (research 만 설치)
-      - (현재 단계에서는) 그 외 모든 파일은 동일하게 생성
-    프로필별 차이를 늘리고 싶으면 _dependency_groups_block 과 이 함수
-    안의 분기 두 곳만 손대면 됩니다.
+    profile (docs | script | research) 는 다음 *다섯* 곳을 모두 결정합니다
+    (docs/design-decisions.md §2 "프로필 인식의 범위"):
+      1. pyproject.toml 의 [dependency-groups] 구성 → _dependency_groups_block
+      2. .github/workflows/ci.yml 의 lint/typecheck/test 단계 → _ci_steps_block
+      3. Makefile 의 test/lint/format 타깃 → tpl_makefile
+      4. pre-commit 훅 자동 설치 여부 (research 만 설치) → 이 함수 아래쪽
+      5. 마무리 "Next steps" 안내 문구 → 이 함수 맨 끝
+    그 외 파일(.gitignore, 문서, src 레이아웃 등) 은 프로필과 무관하게 동일.
+    프로필을 추가/변경할 때는 위 다섯 곳을 *전부* 같이 손봐야 합니다 — 한 곳만
+    분기하면 깔리지도 않은 도구를 CI 가 호출해 레드 빌드가 납니다.
 
     실행 순서가 중요합니다:
       1. 모든 파일을 디스크에 기록

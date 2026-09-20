@@ -117,6 +117,7 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 | `-D` | off | **강제 삭제** — `-d --yes` 와 동일. 확인 생략. |
 | `--remote` | off | 삭제 모드에서 GitHub 레포도 함께 삭제. |
 | `--yes` | off | 확인 프롬프트 생략 (`-d` 와 함께 쓰면 `-D` 와 동등). |
+| `--print-completion zsh` | — | 자동완성 스크립트를 stdout 으로 출력하고 종료 (프로젝트 생성 안 함). 위 zsh 함수 절에서 `eval` 로 사용. |
 
 `python setup_project.py --help`를 실행하면 직접 확인할 수 있습니다.
 
@@ -129,7 +130,7 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 - **src-layout 패키지** — `src/<name>/__init__.py` (사이드 이펙트 없음), `__main__.py`, `cli.py` (typer + loguru), `config.py` (pydantic-settings).
 - **테스트** — 공용 `conftest.py`와 함께 동작하는 smoke + CLI 테스트.
 - **문서** — 배지가 포함된 README, CHANGELOG (Keep a Changelog), `docs/architecture.md`, `docs/cross-platform.md` (Mac/Windows + CUDA), `docs/uv-cheatsheet.md` (uv 명령어 + pip 와의 차이), ADR 템플릿.
-- **플레이스홀더** — `data/{raw,processed,external}/`, `models/`, `notebooks/`, `logs/`.
+- **플레이스홀더** — `data/{raw,processed,external}/`, `models/`, `notebooks/`, `logs/`, `skills/` (Claude Code 스킬 `.md` 를 모아 두는 빈 폴더).
 
 ## 스캐폴딩 이후 (uv 모드)
 
