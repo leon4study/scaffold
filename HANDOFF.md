@@ -54,10 +54,12 @@ STATUS.md·work-log 류가 없어서 git log 와 문서 본문이 사실상 유�
 | `CLAUDE.md` | AI 작업 규칙(2026-09-20 신규) |
 | `HANDOFF.md` | 이 파일 |
 
-- **저장소 자체에는 `.gitignore`·테스트·CI 가 없다.** 남에게는 만들어 주지만 자기 자신에게는
+- **저장소 자체에는 테스트·CI 가 없다**(`.gitignore` 는 2026-10-12 `personal.json` 제외용으로 신설). 남에게는 만들어 주지만 자기 자신에게는
   적용하지 않은 상태 — stdlib-only 단일 파일이라 의존성도 빌드도 없기 때문으로 보이나,
   의도적 결정인지는 문서에 없다 `⟨확인 필요⟩`.
 - **저장소 밖 의존**: `~/.zshrc` 132~140행의 `newpy` 함수 + `eval "$(... --print-completion zsh)"`.
+- **추적 안 되는 개인 파일**: `personal.json`(gitignore) → `~/GitStudy/ai_handoff/BASELINE.md` import ·
+  커밋/푸시 `ask` · `ai_handoff/projects_index.md` 자동 등록. 새 기계로 옮기면 `personal.example.json` 에서 다시 만든다.
   새 기계로 옮기면 README "어디서든 한 줄로 실행하기" 절차를 다시 밟아야 한다.
 
 ## 4. 작업 흐름 타임라인
@@ -79,6 +81,7 @@ STATUS.md·work-log 류가 없어서 git log 와 문서 본문이 사실상 유�
 | 05-27 18:23 | `bc50df0` `--modules` 공백 허용 + `-d`/`-D` 분리(UNIX 컨벤션) | `nargs="*"` + 후처리, 삭제 플래그 2종 |
 | 05-27 18:32 | `3ee2cc6` 그날의 결정들을 `docs/design-decisions.md` 로 박제 | 이 저장소의 핵심 문서 |
 | 2026-09-20 | 계정 전환 대비 정비 — `CLAUDE.md`·`HANDOFF.md` 신규, README 2곳 보강, 낡은 docstring 2곳 교정 | (이 세션) |
+| 2026-10-12 | **AI 작업 환경 기본 생성**(`CLAUDE.md`·`HANDOFF.md`·`.claude/settings.json`, `--no-ai`) + **개인 설정 분리**(`personal.json` gitignore / `personal.example.json`) + 저장소 `.gitignore` 신설. README 빠른 시작을 `newpy` 기준으로. `skills/` 주석의 틀린 서술(Claude 가 자동 인식한다) 정정 | [design-decisions §11](docs/design-decisions.md), 허브의 `ai_handoff/BASELINE.md`·`PLAYBOOK.md` |
 
 **하류에서 이 도구로 만들어진 것(2026-09-20 확인, `docs/uv-cheatsheet.md` 존재로 판별)**:
 `auction_road` · `make_skills` · `new_items` · `startup_beauty`.

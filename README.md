@@ -7,20 +7,33 @@
 
 ## 빠른 시작
 
+평소에는 **`newpy`** 한 단어로 씁니다. `~/.zshrc` 에 등록된 함수라 어느 디렉토리에서 치든
+`~/GitStudy/<name>/` 아래에 프로젝트가 생깁니다. (등록 방법 → [어디서든 한 줄로 실행하기](#어디서든-한-줄로-실행하기-zsh-함수))
+
 ```bash
 # 기본값 — uv 모드 + script 프로필. 폴더 생성, git 초기화, `uv sync` 까지 수행.
-python setup_project.py myproject
+newpy myproject
 
 # 프로필 지정 (아래 "프로필 선택 기준" 참고)
-python setup_project.py my_notes --profile docs
-python setup_project.py my_pipeline --profile research --modules detection,tracking,risk,ui
+newpy my_notes --profile docs
+newpy my_pipeline --profile research --modules detection,tracking,risk,ui
+
+# GitHub 원격 저장소까지 생성 (gh CLI 필요, 기본값은 none)
+newpy myproject --github private
 
 # 일반 venv + pip 사용 (uv 미사용)
-python setup_project.py myproject --no-uv
+newpy myproject --no-uv
 
 # 파일만 생성 (설치 없음, git 없음)
-python setup_project.py myproject --no-git --no-venv
+newpy myproject --no-git --no-venv
+
+# 삭제 (-d 는 이름 재입력 확인, -D 는 확인 생략, --remote 는 GitHub 레포도 삭제)
+newpy myproject -d
 ```
+
+> `newpy` 는 `~/GitStudy` 에서 `python3 ~/GitStudy/scaffold/setup_project.py` 를 실행하는 래퍼입니다.
+> 함수를 등록하지 않았다면 `python3 setup_project.py myproject` 로 직접 불러도 결과는 같습니다
+> (이때는 **현재 디렉토리** 아래에 생깁니다).
 
 ## 프로필 선택 기준
 
@@ -111,6 +124,7 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 | `--no-uv` | uv 모드 | uv 대신 일반 `python -m venv` + pip 사용. |
 | `--no-venv` | venv 켜짐 | `.venv` / `uv sync` 생성을 건너뜀. |
 | `--no-git` | git 켜짐 | `git init` + 첫 커밋을 건너뜀. |
+| `--no-ai` | AI 켜짐 | `CLAUDE.md` · `HANDOFF.md` · `.claude/settings.json` 생성과 `personal.json` 적용을 건너뜀. |
 | `--license MIT\|NONE` | `MIT` | 생성할 라이선스 파일. |
 | `--github none\|private\|public` | `none` | GitHub 원격 저장소 자동 생성 (gh CLI 필요). |
 | `-d` / `--delete` | off | **안전 삭제** — 폴더 이름 재입력 필요. |
@@ -130,7 +144,28 @@ newpy myproject --no-venv --no-git                 # 파일만 생성
 - **src-layout 패키지** — `src/<name>/__init__.py` (사이드 이펙트 없음), `__main__.py`, `cli.py` (typer + loguru), `config.py` (pydantic-settings).
 - **테스트** — 공용 `conftest.py`와 함께 동작하는 smoke + CLI 테스트.
 - **문서** — 배지가 포함된 README, CHANGELOG (Keep a Changelog), `docs/architecture.md`, `docs/cross-platform.md` (Mac/Windows + CUDA), `docs/uv-cheatsheet.md` (uv 명령어 + pip 와의 차이), ADR 템플릿.
+- **AI 작업 환경** (`--no-ai` 로 끔) — `CLAUDE.md`(읽는 순서·기록 위치·강점 판정이 든 규칙 골격),
+  `HANDOFF.md`(7절 인수인계 골격), `.claude/settings.json`(`.env*`·`*.pem`·`*.key` 읽기 차단 + 검사 명령 허용).
+  `.gitignore` 에 `.claude/settings.local.json` 포함.
 - **플레이스홀더** — `data/{raw,processed,external}/`, `models/`, `notebooks/`, `logs/`, `skills/` (Claude Code 스킬 `.md` 를 모아 두는 빈 폴더).
+
+## 개인 설정 (`personal.json`)
+
+내 환경에만 해당하는 값은 스크립트가 아니라 `personal.json` 에 둡니다. 이 파일은 `.gitignore` 에 걸려 커밋되지 않고,
+형식은 추적되는 [personal.example.json](personal.example.json) 이 보여 줍니다. 파일이 없으면 범용 골격만 만듭니다.
+
+```bash
+cp personal.example.json personal.json    # 그다음 <your-rules-hub> 자리를 실제 경로로 교체
+```
+
+| 키 | 하는 일 |
+|---|---|
+| `claude_md_imports` | 생성되는 `CLAUDE.md` 맨 위에 `@경로` 로 불러올 파일. 복사가 아니라 참조라서 원본을 고치면 모든 프로젝트에 반영 |
+| `claude_settings` | `.claude/settings.json` 에 합칠 내용(목록은 합집합) — 예: 커밋·푸시를 `ask` 로 |
+| `projects_index` | 새 프로젝트를 개인 인덱스 표 끝에 한 줄 등록(`{name}` `{path}` `{date}` `{git}` `{profile}` 치환) |
+
+> 이 저장소 주인의 설정은 `~/GitStudy/ai_handoff/BASELINE.md` 를 불러옵니다 — 거기서 공통 규칙과
+> 상황별 플레이북(`PLAYBOOK.md`)으로 이어집니다.
 
 ## 스캐폴딩 이후 (uv 모드)
 

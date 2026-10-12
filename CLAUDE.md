@@ -53,6 +53,8 @@ venv 안에 있어야 한다면 첫 사용자가 막히기 때문이다(닭-달�
   영문 문구는 호환성을 위해 **그대로 유지**한다. 하류 프로젝트가 공개 저장소가 될 수 있고,
   GitHub 도구들이 영문 관례를 전제하기 때문.
 - 예외적으로 이미 한국어인 출력(삭제 확인 프롬프트, 일부 `[setup]` 안내)은 그대로 둔다.
+- **AI 작업 문서 예외**: `tpl_claude_md` · `tpl_handoff_md` 가 뱉는 CLAUDE.md·HANDOFF.md 는 한국어다
+  (GitHub 도구가 읽지 않는 파일) → [design-decisions §11](docs/design-decisions.md).
 
 ## 5. 이 저장소를 고칠 때의 안전 수칙
 
@@ -70,6 +72,14 @@ venv 안에 있어야 한다면 첫 사용자가 막히기 때문이다(닭-달�
   cd /tmp && python3 ~/GitStudy/scaffold/setup_project.py smoketest --no-venv --no-git \
     && find smoketest -type f | sort && rm -rf smoketest
   ```
+
+## 5-1. 개인 값은 `personal.json` 으로만
+
+- 사용자 개인 경로·정책(`~/GitStudy/ai_handoff`, 커밋 승인 규칙, 프로젝트 인덱스)을 **스크립트에 박지 않는다.**
+  `personal.json`(gitignore) 에만 두고, 새 키를 만들면 `personal.example.json` 에도 placeholder 로 추가한다.
+- `personal.json` 은 커밋 대상이 아니다. `git add -A` 로 섞이지 않는지 `.gitignore` 를 확인한다.
+- 스모크 테스트에서 개인 설정까지 확인할 때는 실제 인덱스가 바뀌지 않게 `PERSONAL_CONFIG_PATH` 를
+  복사본을 가리키는 임시 JSON 으로 바꿔서 돌린다(아니면 `--no-ai`).
 
 ## 6. 커밋·git
 

@@ -40,6 +40,11 @@
         - docs/cross-platform.md (Mac/Windows/Linux + CUDA 가이드)
         - docs/uv-cheatsheet.md (uv 명령어 + pip 와의 차이 정리)
         - docs/adr/0001-record-architecture-decisions.md
+  • AI 작업 환경 (--no-ai 로 끔)
+        - CLAUDE.md (AI 규칙 골격), HANDOFF.md (7절 인수인계 골격)
+        - .claude/settings.json (비밀 파일 읽기 차단 + 안전한 검사 명령 허용)
+        - personal.json 이 있으면: 공통 규칙 @import, 개인 permission 병합,
+          개인 프로젝트 인덱스 등록 (예시 = personal.example.json)
   • 데이터 / 모델 / 노트북 / Claude skills 자리잡이 폴더
         - data/{raw,processed,external}/.gitkeep, models/, notebooks/, logs/, skills/
   • 선택적 자동화:
@@ -95,6 +100,7 @@
     --no-uv           uv 대신 일반 `python -m venv` + pip 사용.
     --no-venv         venv / uv-sync 생성을 완전히 건너뜀.
     --no-git          `git init` + 첫 커밋을 건너뜀.
+    --no-ai           CLAUDE.md · HANDOFF.md · .claude/ 생성과 personal.json 적용을 건너뜀.
     --license MIT|NONE  생성할 라이선스 파일 (기본값: MIT).
     --profile docs|script|research
                       개발 도구 프로필 (기본값: script).
@@ -141,6 +147,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import shutil
 import subprocess
 import sys
@@ -487,7 +494,8 @@ htmlcov/
 .tox/
 .ipynb_checkpoints/
 
-# --- IDEs -----------------------------------------------------------
+# --- IDEs / AI tools ------------------------------------------------
+.claude/settings.local.json
 .vscode/
 .idea/
 *.swp
@@ -1644,6 +1652,243 @@ We will use Architecture Decision Records (ADRs) as described by Michael Nygard.
 
 
 # --------------------------------------------------------------------------- #
+# AI 작업 환경 (CLAUDE.md · HANDOFF.md · .claude/settings.json)
+#   새 프로젝트가 "AI 가 처음 들어와도 길을 잃지 않는" 상태로 시작하게 하는
+#   골격. 범용 부분만 여기 두고, 사용자 개인 환경(공통 규칙 허브 경로, 개인
+#   커밋 정책 등)은 personal.json 에서 덧붙인다 → load_personal_config.
+#
+#   이 세 파일은 영문 템플릿 원칙(CLAUDE.md §4)의 예외로 한국어다. GitHub
+#   도구가 읽는 파일이 아니라 사용자와 AI 가 읽는 작업 문서이기 때문.
+#   → docs/design-decisions.md §11
+# --------------------------------------------------------------------------- #
+
+# 개인 설정 파일. 저장소에는 personal.example.json 만 추적하고, 실제 파일은
+# .gitignore 로 제외한다(경로·개인 정책이 공개 저장소로 새지 않게).
+PERSONAL_CONFIG_PATH = Path(__file__).resolve().parent / "personal.json"
+
+
+def load_personal_config() -> dict:
+    """personal.json 을 읽어 dict 로 반환. 없거나 깨졌으면 빈 dict.
+
+    파일이 없는 게 정상 경로다(다른 사람이 clone 한 경우). 깨진 JSON 은
+    프로젝트 생성을 멈출 이유가 아니므로 경고만 출력하고 범용 골격으로 진행.
+    """
+    if not PERSONAL_CONFIG_PATH.exists():
+        return {}
+    try:
+        data = json.loads(PERSONAL_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"[setup] personal.json 을 읽지 못해 무시합니다: {e}")
+        return {}
+    if not isinstance(data, dict):
+        print("[setup] personal.json 최상위가 객체가 아니라 무시합니다.")
+        return {}
+    return data
+
+
+def _merge_settings(base: dict, extra: dict) -> dict:
+    """settings dict 두 개를 합친다. dict 는 재귀로, list 는 중복 없이 이어 붙인다.
+
+    permissions.allow / ask / deny 처럼 "규칙 목록" 이 대부분이라, 덮어쓰기보다
+    합집합이 맞다. 같은 키에 스칼라가 오면 extra(개인 설정)가 이긴다.
+    """
+    out = dict(base)
+    for key, value in extra.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merge_settings(out[key], value)
+        elif isinstance(value, list) and isinstance(out.get(key), list):
+            out[key] = out[key] + [v for v in value if v not in out[key]]
+        else:
+            out[key] = value
+    return out
+
+
+def tpl_claude_settings(extra: dict | None = None) -> str:
+    """.claude/settings.json — 말로 된 규칙 중 "강제할 수 있는 것" 을 강제한다.
+
+    deny: 비밀 파일 읽기 차단. CLAUDE.md 에 "읽지 마라" 라고만 적으면 뚫린다는
+          것이 여러 프로젝트에서 확인됐다(ai_handoff PLAYBOOK §9). `.env.example`
+          도 `.env.*` 에 걸리는데, 실키가 example 에 들어간 사고가 있었으므로
+          의도된 동작이다.
+    allow: 프로필과 무관하게 안전한 읽기·검사 명령만. docs 프로필에 pytest 가
+          없어도 allow 규칙이 있는 것은 무해하다(→ 프로필 분기 불필요).
+    """
+    base = {
+        "permissions": {
+            "allow": [
+                "Bash(make help)",
+                "Bash(make lint)",
+                "Bash(make test)",
+                "Bash(uv run pytest:*)",
+                "Bash(uv run ruff check:*)",
+                "Bash(git status:*)",
+                "Bash(git diff:*)",
+                "Bash(git log:*)",
+            ],
+            "deny": [
+                "Read(./.env)",
+                "Read(./.env.*)",
+                "Read(./**/*.pem)",
+                "Read(./**/*.key)",
+            ],
+        }
+    }
+    merged = _merge_settings(base, extra or {})
+    return json.dumps(merged, ensure_ascii=False, indent=2) + "\n"
+
+
+def tpl_claude_md(name: str, imports: list[str] | None = None) -> str:
+    """CLAUDE.md — AI 작업 규칙의 골격.
+
+    매 메시지마다 읽히는 파일이라 "인덱스" 로 설계했다: 규칙과 위치만 두고,
+    설명은 docs/ 로 보낸다. 빈칸은 `⟨확인 필요⟩` 로 남겨 AI 가 지어내 채우지
+    않게 한다. imports 가 있으면 Claude Code 의 `@경로` 문법으로 공통 규칙을
+    불러온다 — 복사본이 아니라 참조라서 원본을 고치면 모든 프로젝트에 반영된다.
+    """
+    imports_block = ""
+    if imports:
+        lines = "\n".join(f"@{p}" for p in imports)
+        imports_block = f"""## 공통 규칙 (개인 허브에서 불러옴)
+
+{lines}
+
+"""
+    return f"""# CLAUDE.md — {name} 작업 규칙
+
+> 이 파일은 **매 메시지마다** 읽힌다. 200줄 이하로, 규칙과 위치만 적는다. 설명은 `docs/` 로 빼고 여기선 링크한다.
+> 경과·다음 할 일 = [HANDOFF.md](HANDOFF.md) · 사용법 = [README.md](README.md) · 결정의 이유 = [docs/adr/](docs/adr/)
+
+{imports_block}## 0. 한 줄 요약
+
+⟨확인 필요⟩ 이 프로젝트가 무엇이고 왜 있는지 한두 문장.
+
+## 1. 강점 — 새 기능은 이 중 무엇을 날카롭게 하는지 답해야 한다
+
+1. ⟨확인 필요⟩
+
+답이 없는 기능은 옳아 보여도 만들지 않는다. 보류한 안은 §6 에 적고, 보류 사유를 반박하지 않는 한 다시 꺼내지 않는다.
+
+## 2. 세션 시작 시 읽는 순서
+
+1. [HANDOFF.md](HANDOFF.md) §2 현재 상태 · §7 다음 할 일
+2. `git log --oneline -10`
+3. 작업 종류별로 아래 표
+
+| 작업 | 먼저 읽을 것 |
+|---|---|
+| 구조를 바꿀 때 | [docs/architecture.md](docs/architecture.md) |
+| 이전 결정을 뒤집을 때 | [docs/adr/](docs/adr/) 의 해당 번호 |
+
+**필요할 때만 여는 것**(자동으로 읽지 않는다): `docs/cross-platform.md` · `docs/uv-cheatsheet.md` · `data/` · `models/` · `logs/` · 노트북 출력.
+
+## 3. 명령
+
+- 쓸 수 있는 타깃은 `make help` 로 확인한다(프로필마다 다르다).
+- 테스트·린트는 범위를 좁혀 돌린다. 전체 출력이 그대로 컨텍스트에 들어온다.
+
+## 4. 고치면 같은 작업 안에서 기록도 고친다
+
+| 무엇을 했나 | 어디에 적나 |
+|---|---|
+| 사용자에게 보이는 변경 | [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` |
+| 코드만으로 "왜?" 가 안 풀리는 결정 | `docs/adr/` 에 새 번호 |
+| 세션을 끝낼 때 | [HANDOFF.md](HANDOFF.md) §2 · §4 · §7 |
+
+## 5. 규칙을 어디에 둘까
+
+| 성격 | 위치 |
+|---|---|
+| 매 작업에 필요한 규칙 | 이 파일 |
+| 특정 폴더에서만 필요한 규칙 | 그 폴더의 `CLAUDE.md` |
+| 가끔 쓰는 긴 절차 | `docs/` 문서 — 여기엔 링크만 |
+| 반드시 지켜야 하는 행동 | `.claude/settings.json` (permission · hook) — 말로 된 규칙은 뚫린다 |
+
+`.claude/settings.json` 이 `.env*` · `*.pem` · `*.key` 읽기를 막고 있다. 막혀 있다고 셸(`cat` 등)로 우회하지 않는다.
+
+## 6. 보류·거절한 안
+
+| 날짜 | 안 | 이유 |
+|---|---|---|
+"""
+
+
+def tpl_handoff_md(name: str, profile: str, today: str) -> str:
+    """HANDOFF.md — "지금까지 무슨 일이 있었고 다음에 뭘 하나" 의 7절 골격.
+
+    CLAUDE.md 가 규칙 레퍼런스라면 이쪽은 온보딩 내러티브다. 생성 시점에
+    확실히 아는 사실(날짜·프로필)만 채우고 나머지는 비워 둔다.
+    """
+    return f"""# HANDOFF — {name}
+
+> 처음 이 프로젝트를 보는 AI(어떤 도구든)가 이 파일 하나(+링크)만 읽고 이어서 작업할 수 있게 하는 문서.
+> 규칙 = [CLAUDE.md](CLAUDE.md) · 사용법 = [README.md](README.md). 검증 안 된 내용은 `⟨확인 필요⟩` 로 남긴다.
+
+## 1. 한 줄 요약
+
+⟨확인 필요⟩
+
+## 2. 현재 상태
+
+- {today}: `newpy` 로 골격 생성(profile=`{profile}`). 아직 프로젝트 코드 없음.
+
+## 3. 구조 지도
+
+| 경로 | 역할 |
+|---|---|
+| `src/{name}/` | 패키지 본체 |
+| `tests/` | 테스트 |
+| `docs/` | 설계 문서 · ADR |
+| `data/` · `models/` · `logs/` | 산출물 (git 추적 안 함) |
+
+## 4. 작업 흐름 타임라인
+
+| 날짜 | 무엇을 | 왜 |
+|---|---|---|
+| {today} | `newpy` 로 생성 | — |
+
+## 5. 이 프로젝트의 규칙
+
+대화에서만 정해지고 CLAUDE.md·docs 어디에도 없는 규칙을 여기에 먼저 옮긴다 — 계정이나 도구를 바꾸면 가장 먼저 사라지는 것들이다.
+CLAUDE.md 에 이미 있는 규칙은 요약하지 말고 링크만 건다.
+
+## 6. 주의사항
+
+민감 파일은 경로만 적고 내용은 적지 않는다.
+
+## 7. 다음 AI가 할 일
+
+1. §1 과 CLAUDE.md §0·§1(강점)을 사용자와 짧게 대화하며 채운다.
+"""
+
+
+def register_in_projects_index(index_path: Path, row: str, name: str) -> None:
+    """개인 프로젝트 인덱스(마크다운 표)의 첫 표 맨 끝에 한 줄을 추가.
+
+    personal.json 의 projects_index 가 있을 때만 호출된다. 이미 같은 이름의
+    링크(`[name](`)가 있으면 건드리지 않는다 — 삭제 후 같은 이름으로 다시
+    만드는 경우 중복 행을 막기 위함. 표를 못 찾으면 파일을 수정하지 않는다.
+    """
+    if not index_path.exists():
+        print(f"[setup] 인덱스 파일이 없어 등록을 건너뜁니다: {index_path}")
+        return
+    lines = index_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if any(f"[{name}](" in line for line in lines):
+        print(f"[setup] 인덱스에 이미 '{name}' 행이 있어 건너뜁니다.")
+        return
+    # 첫 번째 "| [" 행부터 시작해, 연속된 표 행이 끝나는 위치를 찾는다.
+    start = next((i for i, line in enumerate(lines) if line.startswith("| [")), None)
+    if start is None:
+        print(f"[setup] 인덱스에서 표를 찾지 못해 등록을 건너뜁니다: {index_path}")
+        return
+    end = start
+    while end + 1 < len(lines) and lines[end + 1].startswith("|"):
+        end += 1
+    lines.insert(end + 1, row.rstrip("\n") + "\n")
+    index_path.write_text("".join(lines), encoding="utf-8")
+    print(f"[setup] 프로젝트 인덱스에 등록: {index_path}")
+
+
+# --------------------------------------------------------------------------- #
 # 파일시스템 헬퍼
 # --------------------------------------------------------------------------- #
 
@@ -1682,6 +1927,7 @@ def create_project(
     use_uv: bool,
     github: str,
     profile: str,
+    do_ai: bool = True,
 ) -> None:
     """프로젝트 트리를 생성하고 선택적 자동화 단계를 실행.
 
@@ -1709,6 +1955,9 @@ def create_project(
         github: "none" | "private" | "public" — GitHub 원격 저장소 생성 모드.
             "none" 이면 로컬에만 git 초기화. 그 외에는 해당 가시성으로
             `gh repo create` 호출.
+        do_ai: True 면 CLAUDE.md · HANDOFF.md · .claude/settings.json 을 만든다
+            (프로필과 무관). personal.json 이 있으면 그 내용을 덧붙이고, 프로젝트
+            생성이 끝난 뒤 개인 인덱스에도 등록한다 → docs/design-decisions.md §11.
     """
     root = Path(name)
     if root.exists():
@@ -1779,9 +2028,25 @@ def create_project(
     touch_keep(root / "models")
     touch_keep(root / "notebooks")
     touch_keep(root / "logs")
-    # Claude Code skill 파일 (.md) 을 모아 두는 곳. 빈 폴더로 시작해도
-    # 클로드가 이 폴더를 인식해서 스킬을 추가/사용할 수 있습니다.
+    # 스킬 원고(.md)를 모아 두는 자리잡이 폴더. 주의: Claude Code 가 자동으로
+    # 인식하는 위치는 `.claude/skills/<name>/SKILL.md` 이고, 이 폴더는 아니다.
     touch_keep(root / "skills")
+
+    # ---- AI 작업 환경 ----------------------------------------------------
+    personal = load_personal_config() if do_ai else {}
+    if do_ai:
+        imports = [str(p) for p in personal.get("claude_md_imports", [])]
+        write_file(root / "CLAUDE.md", tpl_claude_md(name, imports))
+        write_file(
+            root / "HANDOFF.md",
+            tpl_handoff_md(name, profile, datetime.date.today().isoformat()),
+        )
+        write_file(
+            root / ".claude" / "settings.json",
+            tpl_claude_settings(personal.get("claude_settings", {})),
+        )
+        if personal:
+            print(f"[setup] 개인 설정 적용: {PERSONAL_CONFIG_PATH}")
 
     print("[setup] Files written.")
 
@@ -1867,6 +2132,19 @@ def create_project(
                 print(f"[setup] venv created at {root / '.venv'}.")
             except subprocess.CalledProcessError as e:
                 print(f"[setup] venv creation failed: {e}")
+
+    # ---- 개인 프로젝트 인덱스 등록 (personal.json 에 있을 때만) ----------
+    index_cfg = personal.get("projects_index") or {}
+    if index_cfg.get("path") and index_cfg.get("row"):
+        abs_root = root.resolve()
+        row = index_cfg["row"].format(
+            name=name,
+            path=abs_root,
+            date=datetime.date.today().isoformat(),
+            git="git" if git_ok else "no-git",
+            profile=profile,
+        )
+        register_in_projects_index(Path(index_cfg["path"]).expanduser(), row, name)
 
     # ---- 마무리 요약 -----------------------------------------------------
     print(f"\n[done] '{name}' created.")
@@ -2026,6 +2304,7 @@ _newpy() {
     '--no-uv[uv 대신 pip 사용]' \
     '--no-git[git init 건너뜀]' \
     '--no-venv[venv 생성 건너뜀]' \
+    '--no-ai[CLAUDE.md·HANDOFF.md·.claude/ 생성 건너뜀]' \
     '--license[라이선스]:license:(MIT NONE)' \
     '--profile[프로필]:profile:(docs script research)' \
     '--github[GitHub 레포]:visibility:(none private public)' \
@@ -2095,6 +2374,14 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--no-git", action="store_true", help="Skip git init + first commit")
     p.add_argument("--no-venv", action="store_true", help="Skip .venv / uv-sync creation")
+    p.add_argument(
+        "--no-ai",
+        action="store_true",
+        help=(
+            "CLAUDE.md · HANDOFF.md · .claude/settings.json 생성과 "
+            "personal.json 적용(인덱스 등록 포함)을 건너뜀."
+        ),
+    )
     p.add_argument(
         "--license",
         default="MIT",
@@ -2216,6 +2503,7 @@ def main() -> None:
         use_uv=not args.no_uv,
         github=args.github,
         profile=args.profile,
+        do_ai=not args.no_ai,
     )
 
 

@@ -1,0 +1,5 @@
+# 개인 설정 — 경로·개인 정책이 공개 저장소로 새지 않게. 형식은 personal.example.json 참고.
+personal.json
+
+.DS_Store
+__pycache__/
